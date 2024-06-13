@@ -47,14 +47,6 @@ def parse_args(text: str):
     while True:
         if index + 1 >= len(text):
             return args
-
-        # if "(" not in text[index+1:]:
-        #     if "." in text[index+1:]:
-        #         arg_end = text[index+1:].index(".")
-        #     else:
-        #         arg_end = len(text[index+1:])
-        # else:
-        #     arg_end = find_block_end(text[index+1:]) + 1
         arg_end = find(text[index+1:], ".")
         block_start = find(text[index+1:], "(")
         if block_start < arg_end:
@@ -93,8 +85,8 @@ def parse_function(text: str) -> tuple | str:
             return parse_call(text)
         return text
     if text[0] == "(":
-        assert text[-1] == ")"
-        return parse_function(text[1:-1])
+        end = find_block_end(text)
+        return parse_function(text[1:end])
     call_name_end = find(text, ".")
     def_name_end = find(text, "(")
     if call_name_end < def_name_end:
@@ -139,18 +131,26 @@ def replace(function, old, new):
     return name, new_body, [replace(arg, old, new) for arg in args]
 
 
-# def simplify(function):
-#     if isinstance(function, str):
-#         return function
-#     if len(function) == 2:
-#         # function is not yet resolved
-#         return function
+def simplify(function):
+    return function
+    print("simplify", function)
+    if isinstance(function, str):
+        return function
+    if len(function) == 2:
+        # function is not yet resolved
+        return function[0], [simplify(arg) for arg in function[1]]
 
-#     body = simplify(function[1])
-#     if function[2] is not None and len(function[2]) != 0:
-#         return interpret_function((function[0], body, function[2]))
+    name, body, args = function
+    body = simplify(body)
+    if len(args) == 0:
+        return name, body, args
 
-#     return function[0], body, function[2]
+    new_function = replace(body, name, args[0])
+    if isinstance(new_function, str):
+        return new_function
+    if len(new_function) == 2:
+        return new_function
+    return new_function
 
 
 def interpret_function(function):
@@ -169,9 +169,12 @@ def interpret_function(function):
     new_function = replace(body, name, arg)
     if isinstance(new_function, str):
         return new_function
-    print(new_function)
-    new_function = (new_function[0], new_function[1],
+    if len(new_function) == 2:
+        print("2", new_function)
+        return interpret_function(new_function)
+    new_function = (new_function[0], simplify(new_function[1]),
                     new_function[2] + args[1:])
+    print("simplified", new_function)
     return interpret_function(new_function)
 
 
