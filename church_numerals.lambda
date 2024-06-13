@@ -1,0 +1,17 @@
+let zero f0(
+    x0(
+        x0
+    )
+);
+let succ n(
+    f1(
+        x1(
+            f1.(n.f1.x1)
+        )
+    )
+);
+let f2 a(
+    a
+);
+
+succ.zero

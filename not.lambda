@@ -1,0 +1,14 @@
+let true a(
+    b(
+        a
+    )
+);
+let false a(
+    b(
+        b
+    )
+);
+
+b(
+    b.f.t
+).true

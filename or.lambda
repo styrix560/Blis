@@ -1,0 +1,16 @@
+let true a(
+    b(
+        a
+    )
+);
+let false a(
+    b(
+        b
+    )
+);
+
+a(
+    b(
+        a.t.b
+    )
+).true.(false.t.f)
