@@ -1,9 +1,13 @@
 use core::panic;
-use std::collections::VecDeque;
+use std::{
+    clone,
+    collections::{HashMap, VecDeque},
+};
 
 use crate::Lambda;
 
 fn insert_arguments(root: &mut Lambda, args: &mut VecDeque<Lambda>) {
+    println!("inserting {:?} into {root}", args);
     if args.is_empty() {
         return;
     }
@@ -28,52 +32,89 @@ fn insert_arguments(root: &mut Lambda, args: &mut VecDeque<Lambda>) {
     }
 }
 
-fn replace(name: &str, replacement: &Lambda, body: Box<Lambda>) -> Lambda {
+fn beta_reduction(
+    name: &str,
+    replacement: &Lambda,
+    body: Box<Lambda>,
+    variable_renames: &mut HashMap<String, String>,
+) -> Lambda {
+    println!("replacing {name} in {body} with {replacement}");
     match *body {
         Lambda::Value(value) => {
-            if value == name {
+            let new_value = variable_renames.get(&value).unwrap_or(&value);
+            if new_value == name {
                 replacement.clone()
             } else {
-                Lambda::val(&value)
+                Lambda::val(new_value)
             }
         }
         Lambda::Definition {
-            input,
+            mut input,
             body,
             parameter,
         } => {
-            assert!(input != name);
-            let new_body = replace(name, replacement, body);
+            let new_name = if variable_renames.contains_key(&input) {
+                let renamed = variable_renames.get(&input).unwrap();
+                if renamed == &input {
+                    // this name is already defined. pick a new one
+                    let mut number = 1;
+                    while variable_renames.contains_key(&(input.clone() + &number.to_string())) {
+                        number += 1;
+                    }
+                    input.clone() + &number.to_string()
+                } else {
+                    // this name was already renamed
+                    variable_renames.get(&input).unwrap().clone()
+                }
+            } else {
+                input.clone()
+            };
+            variable_renames.insert(input, new_name.clone());
+            let new_body = beta_reduction(name, replacement, body, variable_renames);
+            variable_renames.remove(&new_name);
+
             let new_parameter = parameter
-                .map(|p| replace(name, replacement, p))
+                .map(|p| beta_reduction(name, replacement, p, variable_renames))
                 .map(Box::new);
 
             Lambda::Definition {
-                input,
+                input: new_name,
                 body: Box::new(new_body),
                 parameter: new_parameter,
             }
         }
         Lambda::Call {
             function_name: input,
-            mut parameter,
+            parameter,
         } => {
-            assert!(matches!(
-                replacement,
-                Lambda::Definition {
-                    input,
-                    body,
-                    parameter
-                }
-            ));
+            let input = if variable_renames.contains_key(&input) {
+                variable_renames.get(&input).unwrap().clone()
+            } else {
+                input
+            };
+            assert!(
+                matches!(
+                    replacement,
+                    Lambda::Definition {
+                        input,
+                        body,
+                        parameter
+                    }
+                ) || matches!(replacement, Lambda::Value(_))
+            );
+            let mut new_parameter: VecDeque<Lambda> = parameter
+                .into_iter()
+                .map(|p| beta_reduction(name, replacement, Box::new(p), variable_renames))
+                .collect();
+
             if input == name {
                 let mut replacement = replacement.clone();
-                insert_arguments(&mut replacement, &mut parameter);
+                insert_arguments(&mut replacement, &mut new_parameter);
                 replacement
             } else {
                 Lambda::Call {
                     function_name: input,
-                    parameter,
+                    parameter: new_parameter,
                 }
             }
         }
@@ -88,7 +129,11 @@ fn reduce(root: Lambda) -> Lambda {
     } = root
     {
         assert!(parameter.is_some());
-        return replace(&input, &parameter.unwrap(), body);
+        let mut map = HashMap::new();
+        if let Lambda::Value(value) = parameter.as_ref().unwrap().as_ref() {
+            map.insert(value.clone(), value.clone());
+        }
+        return beta_reduction(&input, &parameter.unwrap(), body, &mut map);
     }
     unreachable!()
 }
@@ -162,12 +207,14 @@ mod tests {
     }
 
     #[test]
-    #[should_panic]
     fn name_collision() {
+        // y(x(y.x)).x(x) => y(x1(y.x1)).x(x) => x1(x(x).x1) => x1(x1)
         let lambda = Lambda::def(
             "y",
             Lambda::def("x", Lambda::call("x", vec![Lambda::val("y")]), None),
             Some(Lambda::val("x")),
         );
+        let reduced = full_reduce(lambda);
+        assert_eq!(reduced, Lambda::def("x1", Lambda::val("x1"), None))
     }
 }

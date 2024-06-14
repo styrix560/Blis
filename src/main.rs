@@ -3,6 +3,9 @@ use std::{
     fmt::{write, Display},
 };
 
+use parser::parse_program;
+use reducer::full_reduce;
+
 mod parser;
 mod reducer;
 
@@ -72,9 +75,135 @@ impl Lambda {
     }
 }
 
+fn run_program(text: &str) -> Lambda {
+    let lambda = parse_program(text);
+    full_reduce(lambda)
+}
+
 fn main() {
     println!("{:?}", parser::parse_program("f(f.y).x(x)"))
 }
 
 #[cfg(test)]
-mod tests {}
+mod tests {
+    use crate::{run_program, Lambda};
+
+    #[test]
+    fn simple_reduction() {
+        let text = "f(f.y).x(x)";
+        let reduced = run_program(text);
+        assert_eq!(reduced, Lambda::val("y"));
+    }
+
+    #[test]
+    fn not_true() {
+        let text = "true(not(not.true).b(b.f.t)).c(d(c))";
+        let reduced = run_program(text);
+        assert_eq!(reduced, Lambda::val("f"));
+    }
+
+    #[test]
+    fn not_false() {
+        let text = "false(not(not.false).b(b.f.t)).c(d(d))";
+        let reduced = run_program(text);
+        assert_eq!(reduced, Lambda::val("t"));
+    }
+
+    #[test]
+    fn and_false_false() {
+        let text = "
+        false(
+            true(
+                e(
+                    g(
+                        e.g.f
+                    )
+                ).false.(false.t.f)
+            ).c(
+                d(
+                    c
+                )
+            )
+        ).a(
+            b(
+                b
+            )
+        )
+        ";
+        let reduced = run_program(text);
+        assert_eq!(reduced, Lambda::val("f"));
+    }
+    #[test]
+    fn and_true_false() {
+        let text = "
+        false(
+            true(
+                e(
+                    g(
+                        e.g.f
+                    )
+                ).true.(false.t.f)
+            ).c(
+                d(
+                    c
+                )
+            )
+        ).a(
+            b(
+                b
+            )
+        )
+        ";
+        let reduced = run_program(text);
+        assert_eq!(reduced, Lambda::val("f"));
+    }
+    #[test]
+    fn and_false_true() {
+        let text = "
+        false(
+            true(
+                e(
+                    g(
+                        e.g.f
+                    )
+                ).false.(true.t.f)
+            ).c(
+                d(
+                    c
+                )
+            )
+        ).a(
+            b(
+                b
+            )
+        )
+        ";
+        let reduced = run_program(text);
+        assert_eq!(reduced, Lambda::val("f"));
+    }
+
+    // #[test]
+    // fn and_true_true() {
+    //     let text = "
+    //     false(
+    //         true(
+    //             e(
+    //                 g(
+    //                     e.g.f
+    //                 )
+    //             ).true.(true.t.f)
+    //         ).c(
+    //             d(
+    //                 c
+    //             )
+    //         )
+    //     ).a(
+    //         b(
+    //             b
+    //         )
+    //     )
+    //     ";
+    //     let reduced = run_program(text);
+    //     assert_eq!(reduced, Lambda::val("t"));
+    // }
+}
