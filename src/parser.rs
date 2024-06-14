@@ -124,7 +124,7 @@ fn parse(text: &str, arguments: &mut VecDeque<Lambda>) -> Lambda {
     }
 }
 
-fn parse_program(text: &str) -> Lambda {
+pub(crate) fn parse_program(text: &str) -> Lambda {
     let mut arguments = VecDeque::new();
     parse(
         &text

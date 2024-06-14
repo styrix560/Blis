@@ -4,7 +4,9 @@ use std::{
 };
 
 mod parser;
+mod reducer;
 
+// make this copy-able
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum Lambda {
     Value(String),
@@ -14,8 +16,8 @@ enum Lambda {
         parameter: Option<Box<Lambda>>,
     },
     Call {
-        input: String,
-        args: VecDeque<Lambda>,
+        function_name: String,
+        parameter: VecDeque<Lambda>,
     },
 }
 
@@ -37,7 +39,10 @@ impl Display for Lambda {
                 };
                 Ok(())
             }
-            Lambda::Call { input, args } => {
+            Lambda::Call {
+                function_name: input,
+                parameter: args,
+            } => {
                 write!(f, "{}", input)?;
                 for arg in args {
                     write!(f, ".{}", arg)?;
@@ -49,16 +54,16 @@ impl Display for Lambda {
 }
 
 impl Lambda {
-    fn val(value: &str) -> Self {
+    pub(crate) fn val(value: &str) -> Self {
         Lambda::Value(value.to_string())
     }
-    fn call(input: &str, replacement: VecDeque<Lambda>) -> Self {
+    pub(crate) fn call(function_name: &str, parameter: VecDeque<Lambda>) -> Self {
         Lambda::Call {
-            input: input.to_string(),
-            args: replacement,
+            function_name: function_name.to_string(),
+            parameter,
         }
     }
-    fn def(input: &str, body: Lambda, parameter: Option<Lambda>) -> Self {
+    pub(crate) fn def(input: &str, body: Lambda, parameter: Option<Lambda>) -> Self {
         Lambda::Definition {
             input: input.to_string(),
             body: Box::new(body),
@@ -68,7 +73,7 @@ impl Lambda {
 }
 
 fn main() {
-    println!("Hello, world!");
+    println!("{:?}", parser::parse_program("f(f.y).x(x)"))
 }
 
 #[cfg(test)]
