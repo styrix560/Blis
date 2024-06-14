@@ -57,10 +57,10 @@ impl Lambda {
     pub(crate) fn val(value: &str) -> Self {
         Lambda::Value(value.to_string())
     }
-    pub(crate) fn call(function_name: &str, parameter: VecDeque<Lambda>) -> Self {
+    pub(crate) fn call(function_name: &str, parameter: Vec<Lambda>) -> Self {
         Lambda::Call {
             function_name: function_name.to_string(),
-            parameter,
+            parameter: VecDeque::from(parameter),
         }
     }
     pub(crate) fn def(input: &str, body: Lambda, parameter: Option<Lambda>) -> Self {

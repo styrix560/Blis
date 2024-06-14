@@ -49,7 +49,10 @@ fn parse_call(text: &str, arguments: &mut VecDeque<Lambda>) -> Lambda {
     args.append(arguments);
     arguments.append(&mut args);
 
-    Lambda::call(name, std::mem::take(arguments))
+    Lambda::Call {
+        function_name: name.to_string(),
+        parameter: std::mem::take(arguments),
+    }
 }
 
 fn parse_arguments(mut text: &str) -> VecDeque<Lambda> {
@@ -137,7 +140,6 @@ pub(crate) fn parse_program(text: &str) -> Lambda {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::VecDeque;
 
     use crate::{parser::parse_program, Lambda};
 
@@ -217,7 +219,7 @@ mod tests {
                 "a",
                 Lambda::def(
                     "b",
-                    Lambda::call("a", VecDeque::from(vec![Lambda::val("b")])),
+                    Lambda::call("a", vec![Lambda::val("b")]),
                     Some(Lambda::val("5"))
                 ),
                 Some(Lambda::def("c", Lambda::val("c"), None))
@@ -246,10 +248,7 @@ mod tests {
                     "b",
                     Lambda::def(
                         "c",
-                        Lambda::call(
-                            "a",
-                            VecDeque::from(vec![Lambda::val("b"), Lambda::val("c")])
-                        ),
+                        Lambda::call("a", vec![Lambda::val("b"), Lambda::val("c")]),
                         Some(Lambda::val("3"))
                     ),
                     Some(Lambda::val("5"))
@@ -286,10 +285,7 @@ mod tests {
                     "b",
                     Lambda::def(
                         "c",
-                        Lambda::call(
-                            "a",
-                            VecDeque::from(vec![Lambda::val("b"), Lambda::val("c")])
-                        ),
+                        Lambda::call("a", vec![Lambda::val("b"), Lambda::val("c")]),
                         Some(Lambda::val("3"))
                     ),
                     Some(Lambda::val("5"))

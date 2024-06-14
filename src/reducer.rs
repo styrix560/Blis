@@ -94,7 +94,7 @@ fn reduce(root: Lambda) -> Lambda {
 }
 
 pub(crate) fn full_reduce(mut root: Lambda) -> Lambda {
-    loop {
+    for _ in 0..1000 {
         println!("{}", root);
         match &root {
             Lambda::Value(_) => return root,
@@ -115,11 +115,11 @@ pub(crate) fn full_reduce(mut root: Lambda) -> Lambda {
             } => panic!("Unresolved function"),
         }
     }
+    root
 }
 
 #[cfg(test)]
 mod tests {
-    use std::collections::VecDeque;
 
     use crate::{reducer::full_reduce, Lambda};
 
@@ -134,7 +134,7 @@ mod tests {
     fn simple_reduction() {
         let lambda = Lambda::def(
             "f",
-            Lambda::call("f", VecDeque::from(vec![Lambda::val("y")])),
+            Lambda::call("f", vec![Lambda::val("y")]),
             Some(Lambda::def("x", Lambda::val("x"), None)),
         );
         let reduced = full_reduce(lambda);
@@ -148,7 +148,7 @@ mod tests {
             "a",
             Lambda::def(
                 "b",
-                Lambda::call("a", VecDeque::from(vec![Lambda::val("b")])),
+                Lambda::call("a", vec![Lambda::val("b")]),
                 Some(Lambda::val("3")),
             ),
             Some(Lambda::def(
@@ -159,5 +159,15 @@ mod tests {
         );
         let reduced = full_reduce(lambda);
         assert_eq!(reduced, Lambda::val("3"));
+    }
+
+    #[test]
+    #[should_panic]
+    fn name_collision() {
+        let lambda = Lambda::def(
+            "y",
+            Lambda::def("x", Lambda::call("x", vec![Lambda::val("y")]), None),
+            Some(Lambda::val("x")),
+        );
     }
 }
