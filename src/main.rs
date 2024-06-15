@@ -182,28 +182,28 @@ mod tests {
         assert_eq!(reduced, Lambda::val("f"));
     }
 
-    // #[test]
-    // fn and_true_true() {
-    //     let text = "
-    //     false(
-    //         true(
-    //             e(
-    //                 g(
-    //                     e.g.f
-    //                 )
-    //             ).true.(true.t.f)
-    //         ).c(
-    //             d(
-    //                 c
-    //             )
-    //         )
-    //     ).a(
-    //         b(
-    //             b
-    //         )
-    //     )
-    //     ";
-    //     let reduced = run_program(text);
-    //     assert_eq!(reduced, Lambda::val("t"));
-    // }
+    #[test]
+    fn and_true_true() {
+        let text = "
+        false(
+            true(
+                e(
+                    g(
+                        e.g.f
+                    )
+                ).true.(true.t.f)
+            ).c(
+                d(
+                    c
+                )
+            )
+        ).a(
+            b(
+                b
+            )
+        )
+        ";
+        let reduced = run_program(text);
+        assert_eq!(reduced, Lambda::val("t"));
+    }
 }

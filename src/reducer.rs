@@ -2,6 +2,7 @@ use core::panic;
 use std::{
     clone,
     collections::{HashMap, VecDeque},
+    ops::Deref,
 };
 
 use crate::Lambda;
@@ -121,7 +122,31 @@ fn beta_reduction(
     }
 }
 
+fn get_bound_variables<'a>(root: &'a Lambda, variables: &mut Vec<&'a str>) {
+    match root {
+        Lambda::Value(_) => {}
+        Lambda::Definition {
+            input,
+            body,
+            parameter,
+        } => {
+            variables.push(input);
+            get_bound_variables(body.as_ref(), variables);
+            if let Some(parameter) = parameter {
+                get_bound_variables(parameter.as_ref(), variables);
+            }
+        }
+        Lambda::Call {
+            function_name,
+            parameter,
+        } => {
+            let _ = parameter.iter().map(|p| get_bound_variables(p, variables));
+        }
+    }
+}
+
 fn reduce(root: Lambda) -> Lambda {
+    println!("reducing {}", root);
     if let Lambda::Definition {
         input,
         body,
@@ -129,36 +154,60 @@ fn reduce(root: Lambda) -> Lambda {
     } = root
     {
         assert!(parameter.is_some());
+        let parameter = parameter.unwrap();
         let mut map = HashMap::new();
-        if let Lambda::Value(value) = parameter.as_ref().unwrap().as_ref() {
-            map.insert(value.clone(), value.clone());
+        let mut variables = Vec::new();
+        get_bound_variables(parameter.as_ref(), &mut variables);
+        for p in variables {
+            map.insert(p.to_owned(), p.to_owned());
         }
-        return beta_reduction(&input, &parameter.unwrap(), body, &mut map);
+        return beta_reduction(&input, &parameter, body, &mut map);
     }
     unreachable!()
+}
+
+fn find_reducible(root: Lambda) -> Result<Lambda, Lambda> {
+    match root {
+        Lambda::Value(_) => Err(root),
+        Lambda::Definition {
+            input,
+            body,
+            parameter,
+        } => {
+            if parameter.is_none() {
+                let new_body = find_reducible(*body);
+                if new_body.is_ok() {
+                    Ok(Lambda::def(
+                        &input,
+                        new_body.unwrap(),
+                        parameter.map(|p| *p),
+                    ))
+                } else {
+                    Err(Lambda::def(
+                        &input,
+                        new_body.unwrap_err(),
+                        parameter.map(|p| *p),
+                    ))
+                }
+            } else {
+                Ok(reduce(Lambda::def(&input, *body, parameter.map(|p| *p))))
+            }
+        }
+        Lambda::Call {
+            ref function_name,
+            ref parameter,
+        } => Err(root),
+    }
 }
 
 pub(crate) fn full_reduce(mut root: Lambda) -> Lambda {
     for _ in 0..1000 {
         println!("{}", root);
-        match &root {
-            Lambda::Value(_) => return root,
-            Lambda::Definition {
-                input,
-                body,
-                parameter,
-            } => {
-                if parameter.is_some() {
-                    root = reduce(root)
-                } else {
-                    return root;
-                }
-            }
-            Lambda::Call {
-                function_name,
-                parameter,
-            } => panic!("Unresolved function"),
+        let result = find_reducible(root);
+        if result.is_err() {
+            return result.unwrap_err();
         }
+        root = result.unwrap();
     }
     root
 }
@@ -211,8 +260,8 @@ mod tests {
         // y(x(y.x)).x(x) => y(x1(y.x1)).x(x) => x1(x(x).x1) => x1(x1)
         let lambda = Lambda::def(
             "y",
-            Lambda::def("x", Lambda::call("x", vec![Lambda::val("y")]), None),
-            Some(Lambda::val("x")),
+            Lambda::def("x", Lambda::call("y", vec![Lambda::val("x")]), None),
+            Some(Lambda::def("x", Lambda::val("x"), None)),
         );
         let reduced = full_reduce(lambda);
         assert_eq!(reduced, Lambda::def("x1", Lambda::val("x1"), None))
