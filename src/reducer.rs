@@ -52,11 +52,12 @@ fn beta_reduction(
             }
         }
         Lambda::Definition {
-            mut input,
+            input,
             body,
             parameter,
         } => {
             let new_name = if variable_renames.contains_key(&input) {
+                // TODO: i dont think this should work
                 let renamed = variable_renames.get(&input).unwrap();
                 if renamed == &input {
                     // this name is already defined. pick a new one
@@ -284,5 +285,31 @@ mod tests {
         );
         let reduced = full_reduce(lambda);
         assert_eq!(reduced, Lambda::def("x1", Lambda::val("x1"), None))
+    }
+
+    #[test]
+    fn complex_name_collisions() {
+        // a(b(c(a.(b.(c.5))))).a(a).a(a).a(a)
+        let lambda = Lambda::def(
+            "a",
+            Lambda::def(
+                "b",
+                Lambda::def(
+                    "c",
+                    Lambda::call(
+                        "a",
+                        vec![Lambda::call(
+                            "b",
+                            vec![Lambda::call("a", vec![Lambda::val("5")])],
+                        )],
+                    ),
+                    Some(Lambda::def("a", Lambda::val("a"), None)),
+                ),
+                Some(Lambda::def("a", Lambda::val("a"), None)),
+            ),
+            Some(Lambda::def("a", Lambda::val("a"), None)),
+        );
+        let reduced = full_reduce(lambda);
+        assert_eq!(reduced, Lambda::val("5"))
     }
 }
