@@ -51,7 +51,7 @@ fn parse_call(text: &str, arguments: &mut VecDeque<Lambda>) -> Lambda {
 
     Lambda::Call {
         function_name: name.to_string(),
-        parameter: std::mem::take(arguments),
+        parameters: std::mem::take(arguments),
     }
 }
 

@@ -1,6 +1,6 @@
 use core::panic;
 use std::{
-    clone,
+    any, clone,
     collections::{HashMap, VecDeque},
     ops::Deref,
 };
@@ -13,7 +13,9 @@ fn insert_arguments(root: &mut Lambda, args: &mut VecDeque<Lambda>) {
         return;
     }
     match root {
-        Lambda::Value(_) => panic!("Cannot call value"),
+        Lambda::Value(name) => {
+            *root = Lambda::call(name, args.iter_mut().map(|a| a.clone()).collect())
+        }
         Lambda::Definition {
             input,
             body,
@@ -26,7 +28,7 @@ fn insert_arguments(root: &mut Lambda, args: &mut VecDeque<Lambda>) {
         }
         Lambda::Call {
             function_name,
-            parameter,
+            parameters: parameter,
         } => {
             parameter.append(args);
         }
@@ -86,7 +88,7 @@ fn beta_reduction(
         }
         Lambda::Call {
             function_name: input,
-            parameter,
+            parameters: parameter,
         } => {
             let input = if variable_renames.contains_key(&input) {
                 variable_renames.get(&input).unwrap().clone()
@@ -115,7 +117,7 @@ fn beta_reduction(
             } else {
                 Lambda::Call {
                     function_name: input,
-                    parameter: new_parameter,
+                    parameters: new_parameter,
                 }
             }
         }
@@ -138,7 +140,7 @@ fn get_bound_variables<'a>(root: &'a Lambda, variables: &mut Vec<&'a str>) {
         }
         Lambda::Call {
             function_name,
-            parameter,
+            parameters: parameter,
         } => {
             let _ = parameter.iter().map(|p| get_bound_variables(p, variables));
         }
@@ -195,8 +197,25 @@ fn find_reducible(root: Lambda) -> Result<Lambda, Lambda> {
         }
         Lambda::Call {
             ref function_name,
-            ref parameter,
-        } => Err(root),
+            parameters,
+        } => {
+            let iter = parameters.into_iter().map(find_reducible);
+            let mut new_parameters = Vec::new();
+            let mut any_reduced = false;
+            for p in iter {
+                if let Ok(result) = p {
+                    any_reduced = true;
+                    new_parameters.push(result);
+                } else {
+                    new_parameters.push(p.unwrap_err());
+                }
+            }
+            if any_reduced {
+                Ok(Lambda::call(function_name, new_parameters))
+            } else {
+                Err(Lambda::call(function_name, new_parameters))
+            }
+        }
     }
 }
 

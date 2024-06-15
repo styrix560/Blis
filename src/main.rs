@@ -20,7 +20,7 @@ enum Lambda {
     },
     Call {
         function_name: String,
-        parameter: VecDeque<Lambda>,
+        parameters: VecDeque<Lambda>,
     },
 }
 
@@ -44,11 +44,11 @@ impl Display for Lambda {
             }
             Lambda::Call {
                 function_name: input,
-                parameter: args,
+                parameters: args,
             } => {
                 write!(f, "{}", input)?;
                 for arg in args {
-                    write!(f, ".{}", arg)?;
+                    write!(f, ".({})", arg)?;
                 }
                 Ok(())
             }
@@ -63,7 +63,7 @@ impl Lambda {
     pub(crate) fn call(function_name: &str, parameter: Vec<Lambda>) -> Self {
         Lambda::Call {
             function_name: function_name.to_string(),
-            parameter: VecDeque::from(parameter),
+            parameters: VecDeque::from(parameter),
         }
     }
     pub(crate) fn def(input: &str, body: Lambda, parameter: Option<Lambda>) -> Self {
@@ -205,5 +205,41 @@ mod tests {
         ";
         let reduced = run_program(text);
         assert_eq!(reduced, Lambda::val("t"));
+    }
+
+    #[test]
+    fn church_numerals() {
+        let text = "
+        zero(
+            succ(
+                f(
+                    succ.(succ.zero)
+                ).a(a)
+            ).n(
+                f(
+                    x(
+                        f.(n.f.x)
+                    )
+                )
+            )
+        ).f(
+            x(
+                x
+            )
+        )
+        ";
+        let result = run_program(text);
+        assert_eq!(
+            result,
+            Lambda::def(
+                "f11",
+                Lambda::def(
+                    "x11",
+                    Lambda::call("f11", vec![Lambda::call("f11", vec![Lambda::val("x11")])]),
+                    None
+                ),
+                None
+            )
+        );
     }
 }
