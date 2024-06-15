@@ -232,10 +232,10 @@ mod tests {
         assert_eq!(
             result,
             Lambda::def(
-                "f11",
+                "f__",
                 Lambda::def(
-                    "x11",
-                    Lambda::call("f11", vec![Lambda::call("f11", vec![Lambda::val("x11")])]),
+                    "x__",
+                    Lambda::call("f__", vec![Lambda::call("f__", vec![Lambda::val("x__")])]),
                     None
                 ),
                 None

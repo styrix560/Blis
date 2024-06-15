@@ -58,14 +58,14 @@ fn beta_reduction(
         } => {
             let new_name = if variable_renames.contains_key(&input) {
                 // TODO: i dont think this should work
-                let renamed = variable_renames.get(&input).unwrap();
-                if renamed == &input {
+                let mut renamed = variable_renames.get(&input).unwrap().clone();
+                if renamed == input {
                     // this name is already defined. pick a new one
-                    let mut number = 1;
-                    while variable_renames.contains_key(&(input.clone() + &number.to_string())) {
-                        number += 1;
+
+                    while variable_renames.contains_key(&renamed) {
+                        renamed += "_";
                     }
-                    input.clone() + &number.to_string()
+                    renamed
                 } else {
                     // this name was already renamed
                     variable_renames.get(&input).unwrap().clone()
@@ -284,7 +284,7 @@ mod tests {
             Some(Lambda::def("x", Lambda::val("x"), None)),
         );
         let reduced = full_reduce(lambda);
-        assert_eq!(reduced, Lambda::def("x1", Lambda::val("x1"), None))
+        assert_eq!(reduced, Lambda::def("x_", Lambda::val("x_"), None))
     }
 
     #[test]
