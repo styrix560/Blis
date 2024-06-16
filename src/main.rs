@@ -1,6 +1,7 @@
 use std::{collections::VecDeque, fmt::Display};
 
 use parser::{parse_program, Binder};
+use reducer::full_reduce;
 
 mod parser;
 mod reducer;
@@ -111,9 +112,9 @@ impl Lambda {
 }
 
 fn run_program(text: &str) -> Lambda {
-    let (lambda, _bindings) = parse_program(text);
-    // full_reduce(lambda)
-    panic!()
+    let (lambda, bindings) = parse_program(text);
+    println!("{bindings:?}");
+    full_reduce(lambda)
 }
 
 fn main() {
@@ -128,21 +129,21 @@ mod tests {
     fn simple_reduction() {
         let text = "f(f.y).x(x)";
         let reduced = run_program(text);
-        assert_eq!(reduced, Lambda::val("y"));
+        assert_eq!(reduced, Lambda::val(2));
     }
 
     #[test]
     fn not_true() {
         let text = "true(not(not.true).b(b.f.t)).c(d(c))";
         let reduced = run_program(text);
-        assert_eq!(reduced, Lambda::val("f"));
+        assert_eq!(reduced, Lambda::val(4));
     }
 
     #[test]
     fn not_false() {
         let text = "false(not(not.false).b(b.f.t)).c(d(d))";
         let reduced = run_program(text);
-        assert_eq!(reduced, Lambda::val("t"));
+        assert_eq!(reduced, Lambda::val(5));
     }
 
     #[test]
@@ -167,7 +168,7 @@ mod tests {
         )
         ";
         let reduced = run_program(text);
-        assert_eq!(reduced, Lambda::val("f"));
+        assert_eq!(reduced, Lambda::val(7));
     }
     #[test]
     fn and_true_false() {
@@ -191,7 +192,7 @@ mod tests {
         )
         ";
         let reduced = run_program(text);
-        assert_eq!(reduced, Lambda::val("f"));
+        assert_eq!(reduced, Lambda::val(7));
     }
     #[test]
     fn and_false_true() {
@@ -215,7 +216,7 @@ mod tests {
         )
         ";
         let reduced = run_program(text);
-        assert_eq!(reduced, Lambda::val("f"));
+        assert_eq!(reduced, Lambda::val(7));
     }
 
     #[test]
@@ -240,7 +241,7 @@ mod tests {
         )
         ";
         let reduced = run_program(text);
-        assert_eq!(reduced, Lambda::val("t"));
+        assert_eq!(reduced, Lambda::val(6));
     }
 
     #[test]
@@ -268,10 +269,10 @@ mod tests {
         assert_eq!(
             result,
             Lambda::def(
-                "f__",
+                4,
                 Lambda::def(
-                    "x__",
-                    Lambda::call("f__", vec![Lambda::call("f__", vec![Lambda::val("x__")])]),
+                    5,
+                    Lambda::call(4, vec![Lambda::call(4, vec![Lambda::val(5)])]),
                     None
                 ),
                 None

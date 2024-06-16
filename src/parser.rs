@@ -384,4 +384,19 @@ mod tests {
             )
         )
     }
+
+    #[test]
+    fn calling_with_itself() {
+        let text = "a(a.a).a(a)";
+        let (result, bindings) = parse_program(text);
+        assert_eq!(bindings, vec!["a", "a"]);
+        assert_eq!(
+            result,
+            Lambda::def(
+                1,
+                Lambda::call(1, vec![Lambda::val(1)]),
+                Some(Lambda::def(0, Lambda::val(0), None))
+            )
+        )
+    }
 }
