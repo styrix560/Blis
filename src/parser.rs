@@ -1,4 +1,4 @@
-use std::collections::{binary_heap::Iter, VecDeque};
+use std::collections::VecDeque;
 
 use crate::Lambda;
 
@@ -20,12 +20,6 @@ impl Binder {
             global_bindings: Vec::new(),
             bindings_stack: Vec::new(),
         }
-    }
-    pub(crate) fn get_stack(&self) -> Vec<&str> {
-        self.bindings_stack
-            .iter()
-            .map(|index| self.global_bindings[*index].as_str())
-            .collect()
     }
     pub(crate) fn get_index(&mut self) -> usize {
         self.global_bindings.len()
@@ -191,14 +185,14 @@ mod tests {
     #[test]
     fn parse_value() {
         let text = "hi".to_string();
-        let (result, bindings) = parse_program(&text);
+        let (result, _bindings) = parse_program(&text);
         assert_eq!(result, Lambda::Value(0))
     }
 
     #[test]
     fn parenthesis_around_value() {
         let text = "(hi)".to_string();
-        let (result, bindings) = parse_program(&text);
+        let (result, _bindings) = parse_program(&text);
         assert_eq!(result, Lambda::Value(0))
     }
 
@@ -212,7 +206,7 @@ mod tests {
     #[test]
     fn nested_function_def() {
         let text = "a(b(c(a)))".to_string();
-        let (result, bindings) = parse_program(&text);
+        let (result, _bindings) = parse_program(&text);
         assert_eq!(
             result,
             Lambda::def(

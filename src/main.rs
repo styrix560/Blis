@@ -77,20 +77,6 @@ impl Lambda {
             parameters: VecDeque::from(parameter),
         }
     }
-    pub(crate) fn new_def(
-        function_name: &str,
-        body: Lambda,
-        parameter: Option<Lambda>,
-        bindings: &mut Vec<String>,
-    ) -> Self {
-        let name_index = bindings.len();
-        bindings.push(function_name.to_owned());
-        Lambda::Definition {
-            name_index,
-            body: Box::new(body),
-            parameter: parameter.map(Box::new),
-        }
-    }
 
     pub(crate) fn val(name_index: usize) -> Self {
         Lambda::Value(name_index)

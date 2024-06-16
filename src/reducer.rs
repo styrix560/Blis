@@ -8,7 +8,8 @@ fn insert_arguments(root: &mut Lambda, args: &mut VecDeque<Lambda>) {
     }
     match root {
         Lambda::Value(name) => {
-            *root = Lambda::call(*name, args.iter_mut().map(|a| a.clone()).collect());
+            let args = args.drain(..);
+            *root = Lambda::call(*name, args.collect());
         }
         Lambda::Definition {
             name_index: _,
@@ -29,14 +30,14 @@ fn insert_arguments(root: &mut Lambda, args: &mut VecDeque<Lambda>) {
     }
 }
 
-fn replace(name: usize, replacement: &Lambda, body: Box<Lambda>) -> Lambda {
+fn replace(name: usize, replacement: &Lambda, body: &Lambda) -> Lambda {
     // println!("reducing {body} with {name} -> {replacement}");
-    match *body {
+    match body {
         Lambda::Value(value) => {
-            if value == name {
+            if value == &name {
                 replacement.clone()
             } else {
-                *body
+                Lambda::val(*value)
             }
         }
         Lambda::Definition {
@@ -45,14 +46,15 @@ fn replace(name: usize, replacement: &Lambda, body: Box<Lambda>) -> Lambda {
             parameter,
         } => {
             // assert_ne!(name, name_index);
-            let new_body = replace(name, replacement, body);
+            let new_body = replace(name, replacement, body.as_ref());
 
             let new_parameter = parameter
-                .map(|p| replace(name, replacement, p))
+                .as_ref()
+                .map(|p| replace(name, replacement, p.as_ref()))
                 .map(Box::new);
 
             Lambda::Definition {
-                name_index,
+                name_index: *name_index,
                 body: Box::new(new_body),
                 parameter: new_parameter,
             }
@@ -72,16 +74,16 @@ fn replace(name: usize, replacement: &Lambda, body: Box<Lambda>) -> Lambda {
                 ) || matches!(replacement, Lambda::Value(_))
             );
             let mut new_parameter: VecDeque<Lambda> = parameters
-                .into_iter()
-                .map(|p| replace(name, replacement, Box::new(p)))
+                .iter()
+                .map(|p| replace(name, replacement, p))
                 .collect();
 
-            if name_index == name {
+            if *name_index == name {
                 let mut replacement = replacement.clone();
                 insert_arguments(&mut replacement, &mut new_parameter);
                 replacement
             } else {
-                Lambda::call(name_index, new_parameter.into_iter().collect())
+                Lambda::call(*name_index, new_parameter.into_iter().collect())
             }
         }
     }
@@ -96,7 +98,7 @@ fn reduce(root: Lambda) -> Lambda {
     {
         assert!(parameter.is_some());
         let parameter = parameter.unwrap();
-        return replace(name_index, &parameter, body);
+        return replace(name_index, &parameter, &body);
     }
     unreachable!()
 }
@@ -166,8 +168,6 @@ pub(crate) fn full_reduce(mut root: Lambda) -> Lambda {
 
 #[cfg(test)]
 mod tests {
-
-    use core::panic;
 
     use crate::{reducer::full_reduce, Lambda};
 
