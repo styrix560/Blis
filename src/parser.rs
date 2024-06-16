@@ -167,18 +167,17 @@ fn parse(text: &str, arguments: &mut VecDeque<Lambda>, binder: &mut Binder) -> L
     }
 }
 
+pub(crate) fn remove_whitespace(text: &str) -> String {
+    text.chars()
+        .filter(|c| !c.is_whitespace())
+        .collect::<String>()
+}
+
 pub(crate) fn parse_program(text: &str) -> (Lambda, Vec<String>) {
     let mut arguments = VecDeque::new();
     let mut binder = Binder::new();
     (
-        parse(
-            &text
-                .chars()
-                .filter(|c| !c.is_whitespace())
-                .collect::<String>(),
-            &mut arguments,
-            &mut binder,
-        ),
+        parse(&remove_whitespace(text), &mut arguments, &mut binder),
         binder.global_bindings,
     )
 }
@@ -404,6 +403,6 @@ mod tests {
     #[should_panic]
     fn naming_collision() {
         let text = "a(a(a))";
-        let (result, bindings) = parse_program(text);
+        parse_program(text);
     }
 }

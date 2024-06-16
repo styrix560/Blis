@@ -1,8 +1,10 @@
 use std::{collections::VecDeque, fmt::Display};
 
+use compiler::compile;
 use parser::{parse_program, Binder};
 use reducer::full_reduce;
 
+mod compiler;
 mod parser;
 mod reducer;
 
@@ -98,7 +100,8 @@ impl Lambda {
 }
 
 fn run_program(text: &str) -> Lambda {
-    let (lambda, bindings) = parse_program(text);
+    let compiled = compile(text);
+    let (lambda, bindings) = parse_program(&compiled);
     println!("{bindings:?}");
     full_reduce(lambda)
 }
