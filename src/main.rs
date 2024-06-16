@@ -1,7 +1,6 @@
 use std::{collections::VecDeque, fmt::Display};
 
-use parser::parse_program;
-use reducer::full_reduce;
+use parser::{parse_program, Binder};
 
 mod parser;
 mod reducer;
@@ -9,14 +8,14 @@ mod reducer;
 // make this copy-able
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum Lambda {
-    Value(String),
+    Value(usize),
     Definition {
-        input: String,
+        name_index: usize,
         body: Box<Lambda>,
         parameter: Option<Box<Lambda>>,
     },
     Call {
-        function_name: String,
+        name_index: usize,
         parameters: VecDeque<Lambda>,
     },
 }
@@ -26,7 +25,7 @@ impl Display for Lambda {
         match self {
             Lambda::Value(value) => write!(f, "{value}"),
             Lambda::Definition {
-                input,
+                name_index: input,
                 body,
                 parameter,
             } => {
@@ -40,7 +39,7 @@ impl Display for Lambda {
                 Ok(())
             }
             Lambda::Call {
-                function_name: input,
+                name_index: input,
                 parameters: args,
             } => {
                 write!(f, "{input}")?;
@@ -54,18 +53,57 @@ impl Display for Lambda {
 }
 
 impl Lambda {
-    pub(crate) fn val(value: &str) -> Self {
-        Lambda::Value(value.to_string())
+    pub(crate) fn new_val(value: &str, binder: &mut Binder) -> Self {
+        let index = binder.find_index(value);
+        let index = if let Some(index) = index {
+            index
+        } else {
+            binder.new_binding(value.to_owned())
+        };
+        println!("got index {index} for binding {value}");
+        Lambda::Value(index)
     }
-    pub(crate) fn call(function_name: &str, parameter: Vec<Lambda>) -> Self {
+    pub(crate) fn new_call(
+        function_name: &str,
+        parameter: Vec<Lambda>,
+        binder: &mut Binder,
+    ) -> Self {
+        let name_index = binder
+            .find_index(function_name)
+            .expect("Unknown function name");
         Lambda::Call {
-            function_name: function_name.to_string(),
+            name_index,
             parameters: VecDeque::from(parameter),
         }
     }
-    pub(crate) fn def(input: &str, body: Lambda, parameter: Option<Lambda>) -> Self {
+    pub(crate) fn new_def(
+        function_name: &str,
+        body: Lambda,
+        parameter: Option<Lambda>,
+        bindings: &mut Vec<String>,
+    ) -> Self {
+        let name_index = bindings.len();
+        bindings.push(function_name.to_owned());
         Lambda::Definition {
-            input: input.to_string(),
+            name_index,
+            body: Box::new(body),
+            parameter: parameter.map(Box::new),
+        }
+    }
+
+    pub(crate) fn val(name_index: usize) -> Self {
+        Lambda::Value(name_index)
+    }
+
+    pub(crate) fn call(name_index: usize, parameters: Vec<Lambda>) -> Self {
+        Lambda::Call {
+            name_index,
+            parameters: parameters.into_iter().collect(),
+        }
+    }
+    pub(crate) fn def(name_index: usize, body: Lambda, parameter: Option<Lambda>) -> Self {
+        Lambda::Definition {
+            name_index,
             body: Box::new(body),
             parameter: parameter.map(Box::new),
         }
@@ -73,8 +111,9 @@ impl Lambda {
 }
 
 fn run_program(text: &str) -> Lambda {
-    let lambda = parse_program(text);
-    full_reduce(lambda)
+    let (lambda, _bindings) = parse_program(text);
+    // full_reduce(lambda)
+    panic!()
 }
 
 fn main() {

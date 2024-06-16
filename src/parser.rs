@@ -1,4 +1,4 @@
-use std::collections::VecDeque;
+use std::collections::{binary_heap::Iter, VecDeque};
 
 use crate::Lambda;
 
@@ -7,6 +7,46 @@ enum ParseType {
     Value,
     Definition,
     Call,
+}
+
+pub(crate) struct Binder {
+    pub(crate) global_bindings: Vec<String>,
+    pub(crate) bindings_stack: Vec<usize>,
+}
+
+impl Binder {
+    fn new() -> Self {
+        Binder {
+            global_bindings: Vec::new(),
+            bindings_stack: Vec::new(),
+        }
+    }
+    pub(crate) fn get_stack(&self) -> Vec<&str> {
+        self.bindings_stack
+            .iter()
+            .map(|index| self.global_bindings[*index].as_str())
+            .collect()
+    }
+    pub(crate) fn get_index(&mut self) -> usize {
+        self.global_bindings.len()
+    }
+    pub(crate) fn find_index(&self, value: &str) -> Option<usize> {
+        self.global_bindings
+            .iter()
+            .enumerate()
+            .filter(|(index, _)| self.bindings_stack.contains(index))
+            .find(|(_, binding)| *binding == value)
+            .map(|p| p.0)
+    }
+    pub(crate) fn new_binding(&mut self, name: String) -> usize {
+        let index = self.get_index();
+        self.bindings_stack.push(index);
+        self.global_bindings.push(name);
+        index
+    }
+    fn pop_binding(&mut self) {
+        self.bindings_stack.pop();
+    }
 }
 
 fn find_block_end(text: &str) -> Option<usize> {
@@ -39,20 +79,21 @@ fn get_type(text: &str) -> ParseType {
     ParseType::Call
 }
 
-fn parse_call(text: &str, arguments: &mut VecDeque<Lambda>) -> Lambda {
+fn parse_call(text: &str, arguments: &mut VecDeque<Lambda>, binder: &mut Binder) -> Lambda {
     let name_end = text.find('.').unwrap();
     let name = &text[..name_end];
-    let mut args = parse_arguments(&text[name_end..]);
+    let mut args = parse_arguments(&text[name_end..], binder);
     args.append(arguments);
     arguments.append(&mut args);
 
-    Lambda::Call {
-        function_name: name.to_string(),
-        parameters: std::mem::take(arguments),
-    }
+    Lambda::new_call(
+        name,
+        std::mem::take(arguments).into_iter().collect(),
+        binder,
+    )
 }
 
-fn parse_arguments(mut text: &str) -> VecDeque<Lambda> {
+fn parse_arguments(mut text: &str, binder: &mut Binder) -> VecDeque<Lambda> {
     let mut args = VecDeque::new();
 
     while !text.is_empty() {
@@ -71,67 +112,74 @@ fn parse_arguments(mut text: &str) -> VecDeque<Lambda> {
 
         let arg_text = &text[..arg_end];
 
-        // println!(
-        //     "callend: {:?}\nblock_start: {}\narg_end: {}\narg_text: {}\n-----",
-        //     call_end, block_start, arg_end, arg_text
-        // );
-        let arg = parse(arg_text, &mut VecDeque::new());
+        let arg = parse(arg_text, &mut VecDeque::new(), binder);
         args.push_back(arg);
         text = &text[arg_end..];
     }
     args
 }
 
-fn parse_definition(text: &str, arguments: &mut VecDeque<Lambda>) -> Lambda {
+fn parse_definition(text: &str, arguments: &mut VecDeque<Lambda>, binder: &mut Binder) -> Lambda {
     let name_end = text.find('(').unwrap();
     let name = &text[..name_end];
 
     let body_end = find_block_end(text).unwrap();
+
     let parameter = if body_end + 1 < text.len() {
-        let mut iter = parse_arguments(&text[body_end + 1..]).into_iter();
+        let mut iter = parse_arguments(&text[body_end + 1..], binder).into_iter();
         let argument = iter.next();
         arguments.extend(iter);
         argument
     } else {
         arguments.pop_front()
     };
-    let body = parse(&text[name_end + 1..body_end], arguments);
+
+    let name_index = binder.new_binding(name.to_owned());
+    let body = parse(&text[name_end + 1..body_end], arguments, binder);
+    binder.pop_binding();
+
     println!("{}", &text[body_end + 1..]);
-    Lambda::def(name, body, parameter)
+    Lambda::def(name_index, body, parameter)
 }
 
-fn parse(text: &str, arguments: &mut VecDeque<Lambda>) -> Lambda {
+fn parse(text: &str, arguments: &mut VecDeque<Lambda>, binder: &mut Binder) -> Lambda {
+    println!("parsing {text}");
     if text.starts_with('(') {
         let end = find_block_end(text).unwrap();
         println!("unpacking {text}");
         if end < text.len() - 1 {
             println!("got some extra args");
             assert!(text[end + 1..].starts_with('.'));
-            let mut args = parse_arguments(&text[end + 1..]);
+            let mut args = parse_arguments(&text[end + 1..], binder);
             println!("extra args {args:?}");
             arguments.append(&mut args);
         }
-        return parse(&text[1..end], arguments);
+        return parse(&text[1..end], arguments, binder);
     }
     let parse_type = get_type(text);
 
     println!("{text}: {parse_type:?}");
 
     match parse_type {
-        ParseType::Value => Lambda::Value(text.to_string()),
-        ParseType::Definition => parse_definition(text, arguments),
-        ParseType::Call => parse_call(text, arguments),
+        ParseType::Value => Lambda::new_val(text, binder),
+        ParseType::Definition => parse_definition(text, arguments, binder),
+        ParseType::Call => parse_call(text, arguments, binder),
     }
 }
 
-pub(crate) fn parse_program(text: &str) -> Lambda {
+pub(crate) fn parse_program(text: &str) -> (Lambda, Vec<String>) {
     let mut arguments = VecDeque::new();
-    parse(
-        &text
-            .chars()
-            .filter(|c| !c.is_whitespace())
-            .collect::<String>(),
-        &mut arguments,
+    let mut binder = Binder::new();
+    (
+        parse(
+            &text
+                .chars()
+                .filter(|c| !c.is_whitespace())
+                .collect::<String>(),
+            &mut arguments,
+            &mut binder,
+        ),
+        binder.global_bindings,
     )
 }
 
@@ -143,33 +191,33 @@ mod tests {
     #[test]
     fn parse_value() {
         let text = "hi".to_string();
-        let result = parse_program(&text);
-        assert_eq!(result, Lambda::Value("hi".to_string()))
+        let (result, bindings) = parse_program(&text);
+        assert_eq!(result, Lambda::Value(0))
     }
 
     #[test]
     fn parenthesis_around_value() {
         let text = "(hi)".to_string();
-        let result = parse_program(&text);
-        assert_eq!(result, Lambda::Value("hi".to_string()))
+        let (result, bindings) = parse_program(&text);
+        assert_eq!(result, Lambda::Value(0))
     }
 
     #[test]
     fn function_definition() {
         let text = "a(a)".to_string();
-        let result = parse_program(&text);
-        assert_eq!(result, Lambda::def("a", Lambda::val("a"), None));
+        let (result, bindings) = parse_program(&text);
+        assert_eq!(result, Lambda::def(0, Lambda::val(0), None), "{bindings:?}");
     }
 
     #[test]
-    fn nested_function_definition() {
+    fn nested_function_def() {
         let text = "a(b(c(a)))".to_string();
-        let result = parse_program(&text);
+        let (result, bindings) = parse_program(&text);
         assert_eq!(
             result,
             Lambda::def(
-                "a",
-                Lambda::def("b", Lambda::def("c", Lambda::val("a"), None), None),
+                0,
+                Lambda::def(1, Lambda::def(2, Lambda::val(0), None), None),
                 None
             )
         )
@@ -178,24 +226,24 @@ mod tests {
     #[test]
     fn immediate_call() {
         let text = "a(a).5".to_string();
-        let result = parse_program(&text);
-        assert_eq!(
-            result,
-            Lambda::def("a", Lambda::val("a"), Some(Lambda::val("5")))
-        );
+        let (result, bindings) = parse_program(&text);
+        assert_eq!(bindings, vec!["5", "a"]);
+        assert_eq!(result, Lambda::def(1, Lambda::val(1), Some(Lambda::val(0))));
     }
 
     #[test]
     fn double_call() {
         let text = "a(b(a)).5.3".to_string();
-        let result = parse_program(&text);
+        let (result, bindings) = parse_program(&text);
+        assert_eq!(bindings, vec!["5", "3", "a", "b"]);
         assert_eq!(
             result,
             Lambda::def(
-                "a",
-                Lambda::def("b", Lambda::val("a"), Some(Lambda::val("3"))),
-                Some(Lambda::val("5"))
-            )
+                2,
+                Lambda::def(3, Lambda::val(2), Some(Lambda::val(1))),
+                Some(Lambda::val(0))
+            ),
+            "{bindings:?}"
         )
     }
 
@@ -209,18 +257,20 @@ mod tests {
         ).c(c).5
         "
         .to_string();
-        let result = parse_program(&text);
+        let (result, bindings) = parse_program(&text);
+        assert_eq!(bindings, vec!["c", "5", "a", "b"]);
         assert_eq!(
             result,
             Lambda::def(
-                "a",
+                2,
                 Lambda::def(
-                    "b",
-                    Lambda::call("a", vec![Lambda::val("b")]),
-                    Some(Lambda::val("5"))
+                    3,
+                    Lambda::call(2, vec![Lambda::val(3)]),
+                    Some(Lambda::val(1))
                 ),
-                Some(Lambda::def("c", Lambda::val("c"), None))
-            )
+                Some(Lambda::def(0, Lambda::val(0), None))
+            ),
+            "{bindings:?}"
         )
     }
 
@@ -236,25 +286,22 @@ mod tests {
         ).d(e(e)).5.3
         "
         .to_string();
-        let result = parse_program(&text);
+        let (result, bindings) = parse_program(&text);
+        assert_eq!(bindings, vec!["d", "e", "5", "3", "a", "b", "c"]);
         assert_eq!(
             result,
             Lambda::def(
-                "a",
+                4,
                 Lambda::def(
-                    "b",
+                    5,
                     Lambda::def(
-                        "c",
-                        Lambda::call("a", vec![Lambda::val("b"), Lambda::val("c")]),
-                        Some(Lambda::val("3"))
+                        6,
+                        Lambda::call(4, vec![Lambda::val(5), Lambda::val(6)]),
+                        Some(Lambda::val(3))
                     ),
-                    Some(Lambda::val("5"))
+                    Some(Lambda::val(2))
                 ),
-                Some(Lambda::def(
-                    "d",
-                    Lambda::def("e", Lambda::val("e"), None),
-                    None
-                ))
+                Some(Lambda::def(0, Lambda::def(1, Lambda::val(1), None), None))
             ),
             "{}",
             result
@@ -273,25 +320,22 @@ mod tests {
         )).(d((e((e))))).((5)).3
         "
         .to_string();
-        let result = parse_program(&text);
+        let (result, bindings) = parse_program(&text);
+        assert_eq!(bindings, vec!["d", "e", "5", "3", "a", "b", "c"]);
         assert_eq!(
             result,
             Lambda::def(
-                "a",
+                4,
                 Lambda::def(
-                    "b",
+                    5,
                     Lambda::def(
-                        "c",
-                        Lambda::call("a", vec![Lambda::val("b"), Lambda::val("c")]),
-                        Some(Lambda::val("3"))
+                        6,
+                        Lambda::call(4, vec![Lambda::val(5), Lambda::val(6)]),
+                        Some(Lambda::val(3))
                     ),
-                    Some(Lambda::val("5"))
+                    Some(Lambda::val(2))
                 ),
-                Some(Lambda::def(
-                    "d",
-                    Lambda::def("e", Lambda::val("e"), None),
-                    None
-                ))
+                Some(Lambda::def(0, Lambda::def(1, Lambda::val(1), None), None))
             ),
             "{}",
             result
@@ -310,17 +354,33 @@ mod tests {
         ).5.3
         "
         .to_string();
-        let result = parse_program(&text);
+        let (result, bindings) = parse_program(&text);
+        assert_eq!(bindings, vec!["5", "3", "a", "b", "7", "c"]);
         assert_eq!(
             result,
             Lambda::def(
-                "a",
+                2,
                 Lambda::def(
-                    "b",
-                    Lambda::def("c", Lambda::val("b"), Some(Lambda::val("7"))),
-                    Some(Lambda::val("3"))
+                    3,
+                    Lambda::def(5, Lambda::val(3), Some(Lambda::val(4))),
+                    Some(Lambda::val(1))
                 ),
-                Some(Lambda::val("5"))
+                Some(Lambda::val(0))
+            )
+        )
+    }
+
+    #[test]
+    fn naming_duplication() {
+        let text = "a(a.5).a(a)";
+        let (result, bindings) = parse_program(text);
+        assert_eq!(bindings, vec!["a", "a", "5"]);
+        assert_eq!(
+            result,
+            Lambda::def(
+                1,
+                Lambda::call(1, vec![Lambda::val(2)]),
+                Some(Lambda::def(0, Lambda::val(0), None))
             )
         )
     }
