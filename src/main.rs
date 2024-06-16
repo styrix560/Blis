@@ -1,7 +1,4 @@
-use std::{
-    collections::VecDeque,
-    fmt::{write, Display},
-};
+use std::{collections::VecDeque, fmt::Display};
 
 use parser::parse_program;
 use reducer::full_reduce;
@@ -38,7 +35,7 @@ impl Display for Lambda {
                 write!(f, ")")?;
 
                 if let Some(value) = parameter {
-                    write!(f, ".{}", value)?
+                    write!(f, ".{value}")?;
                 };
                 Ok(())
             }
@@ -46,9 +43,9 @@ impl Display for Lambda {
                 function_name: input,
                 parameters: args,
             } => {
-                write!(f, "{}", input)?;
+                write!(f, "{input}")?;
                 for arg in args {
-                    write!(f, ".({})", arg)?;
+                    write!(f, ".({arg})")?;
                 }
                 Ok(())
             }
@@ -81,7 +78,7 @@ fn run_program(text: &str) -> Lambda {
 }
 
 fn main() {
-    println!("{:?}", parser::parse_program("f(f.y).x(x)"))
+    println!("{}", run_program("f(f.y).x(x)"));
 }
 
 #[cfg(test)]

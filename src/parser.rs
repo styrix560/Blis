@@ -1,5 +1,4 @@
-use core::panic;
-use std::{cmp::min, collections::VecDeque, mem, ops::Index};
+use std::collections::VecDeque;
 
 use crate::Lambda;
 
@@ -18,9 +17,7 @@ fn find_block_end(text: &str) -> Option<usize> {
         }
         if char == ')' {
             stack -= 1;
-            if stack < 0 {
-                panic!()
-            }
+            assert!(stack >= 0);
             if stack == 0 {
                 return Some(index);
             }
@@ -106,19 +103,19 @@ fn parse_definition(text: &str, arguments: &mut VecDeque<Lambda>) -> Lambda {
 fn parse(text: &str, arguments: &mut VecDeque<Lambda>) -> Lambda {
     if text.starts_with('(') {
         let end = find_block_end(text).unwrap();
-        println!("unpacking {}", text);
+        println!("unpacking {text}");
         if end < text.len() - 1 {
             println!("got some extra args");
             assert!(text[end + 1..].starts_with('.'));
             let mut args = parse_arguments(&text[end + 1..]);
-            println!("extra args {:?}", args);
+            println!("extra args {args:?}");
             arguments.append(&mut args);
         }
         return parse(&text[1..end], arguments);
     }
     let parse_type = get_type(text);
 
-    println!("{}: {:?}", text, parse_type);
+    println!("{text}: {parse_type:?}");
 
     match parse_type {
         ParseType::Value => Lambda::Value(text.to_string()),
