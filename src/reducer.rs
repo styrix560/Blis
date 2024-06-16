@@ -45,7 +45,6 @@ fn replace(name: usize, replacement: &Lambda, body: &Lambda) -> Lambda {
             body,
             parameter,
         } => {
-            // assert_ne!(name, name_index);
             let new_body = replace(name, replacement, body.as_ref());
 
             let new_parameter = parameter

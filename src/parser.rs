@@ -116,6 +116,12 @@ fn parse_arguments(mut text: &str, binder: &mut Binder) -> VecDeque<Lambda> {
 fn parse_definition(text: &str, arguments: &mut VecDeque<Lambda>, binder: &mut Binder) -> Lambda {
     let name_end = text.find('(').unwrap();
     let name = &text[..name_end];
+    assert!(!binder
+        .bindings_stack
+        .iter()
+        .map(|index| binder.global_bindings[*index].as_str())
+        .collect::<Vec<&str>>()
+        .contains(&name));
 
     let body_end = find_block_end(text).unwrap();
 
@@ -392,5 +398,12 @@ mod tests {
                 Some(Lambda::def(0, Lambda::val(0), None))
             )
         )
+    }
+
+    #[test]
+    #[should_panic]
+    fn naming_collision() {
+        let text = "a(a(a))";
+        let (result, bindings) = parse_program(text);
     }
 }
