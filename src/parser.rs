@@ -1,6 +1,6 @@
 use std::collections::VecDeque;
 
-use crate::Lambda;
+use crate::{helpers::find_block_end, Lambda};
 
 #[derive(Debug)]
 enum ParseType {
@@ -41,23 +41,6 @@ impl Binder {
     fn pop_binding(&mut self) {
         self.bindings_stack.pop();
     }
-}
-
-fn find_block_end(text: &str) -> Option<usize> {
-    let mut stack = 0;
-    for (index, char) in text.char_indices() {
-        if char == '(' {
-            stack += 1;
-        }
-        if char == ')' {
-            stack -= 1;
-            assert!(stack >= 0);
-            if stack == 0 {
-                return Some(index);
-            }
-        }
-    }
-    None
 }
 
 fn get_type(text: &str) -> ParseType {

@@ -5,6 +5,7 @@ use parser::{parse_program, Binder};
 use reducer::full_reduce;
 
 mod compiler;
+mod helpers;
 mod parser;
 mod reducer;
 
