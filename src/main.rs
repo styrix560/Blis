@@ -110,7 +110,7 @@ fn run_program(text: &str) -> (Lambda, Vec<String>) {
         |lambda: &Lambda| println!("{}", format_lambda_indented(lambda, &bindings, 0, true));
     // println!("parsed {}", format_lambda(&lambda, &bindings));
     println!("{bindings_clone:?}");
-    (full_reduce_debug(lambda, print), bindings_clone)
+    (full_reduce(lambda, 50), bindings_clone)
 }
 
 fn main() {
@@ -320,5 +320,16 @@ mod tests {
             format_lambda(&result, &bindings),
             "f(x(f.(f.(f.(f.(f.(f.(x))))))))"
         );
+    }
+
+    #[test]
+    #[should_panic]
+    fn omega() {
+        let text = "
+        let omega x(x.x);
+        omega.omega
+        ";
+
+        let (_result, _bindings) = run_program(text);
     }
 }
