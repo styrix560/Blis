@@ -1,9 +1,9 @@
-use std::{collections::VecDeque, fmt::Display};
+use std::{collections::VecDeque, fmt::Display, time::Instant};
 
 use compiler::compile;
 use helpers::{format_lambda, format_lambda_indented};
 use parser::{parse_program, Binder};
-use reducer::{full_reduce, full_reduce_debug};
+use reducer::full_reduce;
 
 mod compiler;
 mod helpers;
@@ -113,19 +113,34 @@ fn run_program(text: &str) -> (Lambda, Vec<String>) {
     (full_reduce(lambda, 50), bindings_clone)
 }
 
-fn main() {
+fn calculate_5_times_6() {
     let text = "
     let zero f,x(x);
     let succ n,f,x(
-        f.(n.f.x)
+            f.(n.f.x)
     );
-    let two succ.(succ.zero);
-    let three succ.(succ.(succ.zero));
-    f,x((three.(three.f)).x)
+    let mul n,m(
+        f,x(m.(n.f).x)
+    );
+    let m succ.(succ.(succ.(succ.(succ.(succ.(succ.(succ.(succ.(succ.(succ.zero))))))))));
+    let n succ.(succ.(succ.(succ.(succ.(succ.(succ.(succ.(succ.(succ.zero)))))))));
+    mul.m.n
     ";
+    let now = Instant::now();
+    let compiled = compile(text);
+    println!("compiled in {}ms", now.elapsed().as_micros());
+    let now = Instant::now();
+    let (lambda, bindings) = parse_program(&compiled);
+    println!("parsed in {}ms", now.elapsed().as_micros());
+    let now = Instant::now();
+    let result = full_reduce(lambda, 1000);
+    println!("run in {}ms", now.elapsed().as_micros());
 
-    let (result, bindings) = run_program(text);
-    println!("{}", format_lambda(&result, &bindings));
+    // println!("{}", format_lambda(&result, &bindings));
+}
+
+fn main() {
+    calculate_5_times_6();
 }
 
 #[cfg(test)]
@@ -332,4 +347,7 @@ mod tests {
 
         let (_result, _bindings) = run_program(text);
     }
+
+    fn pred() {}
+    fn fiboncacci() {}
 }

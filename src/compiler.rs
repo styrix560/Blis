@@ -20,10 +20,10 @@ fn replace_lets(text: &str) -> String {
     let text = &text[index..];
     let mut string = String::from(text);
     for (name, body) in lets.into_iter().rev() {
-        println!("{string}");
+        // println!("{string}");
         string = format!("{name}({string}).({body})");
     }
-    println!("{string}");
+    // println!("{string}");
     string
 }
 
