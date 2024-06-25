@@ -1,8 +1,9 @@
 use std::{collections::VecDeque, fmt::Display};
 
 use compiler::compile;
+use helpers::{format_lambda, format_lambda_indented};
 use parser::{parse_program, Binder};
-use reducer::full_reduce;
+use reducer::{full_reduce, full_reduce_debug};
 
 mod compiler;
 mod helpers;
@@ -12,7 +13,7 @@ mod reducer;
 // make this copy-able
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum Lambda {
-    Value(usize),
+    Variable(usize),
     Definition {
         name_index: usize,
         body: Box<Lambda>,
@@ -27,7 +28,7 @@ enum Lambda {
 impl Display for Lambda {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Lambda::Value(value) => write!(f, "{value}"),
+            Lambda::Variable(value) => write!(f, "{value}"),
             Lambda::Definition {
                 name_index: input,
                 body,
@@ -38,7 +39,7 @@ impl Display for Lambda {
                 write!(f, ")")?;
 
                 if let Some(value) = parameter {
-                    write!(f, ".{value}")?;
+                    write!(f, ".({value})")?;
                 };
                 Ok(())
             }
@@ -57,15 +58,15 @@ impl Display for Lambda {
 }
 
 impl Lambda {
-    pub(crate) fn new_val(value: &str, binder: &mut Binder) -> Self {
+    pub(crate) fn new_var(value: &str, binder: &mut Binder) -> Self {
         let index = binder.find_index(value);
         let index = if let Some(index) = index {
             index
         } else {
             binder.new_binding(value.to_owned())
         };
-        println!("got index {index} for binding {value}");
-        Lambda::Value(index)
+        // println!("got index {index} for binding {value}");
+        Lambda::Variable(index)
     }
     pub(crate) fn new_call(
         function_name: &str,
@@ -74,15 +75,15 @@ impl Lambda {
     ) -> Self {
         let name_index = binder
             .find_index(function_name)
-            .expect("Unknown function name");
+            .unwrap_or_else(|| panic!("Unknown function name: {function_name}"));
         Lambda::Call {
             name_index,
             parameters: VecDeque::from(parameter),
         }
     }
 
-    pub(crate) fn val(name_index: usize) -> Self {
-        Lambda::Value(name_index)
+    pub(crate) fn var(name_index: usize) -> Self {
+        Lambda::Variable(name_index)
     }
 
     pub(crate) fn call(name_index: usize, parameters: Vec<Lambda>) -> Self {
@@ -100,40 +101,56 @@ impl Lambda {
     }
 }
 
-fn run_program(text: &str) -> Lambda {
+fn run_program(text: &str) -> (Lambda, Vec<String>) {
     let compiled = compile(text);
+    println!("{compiled}");
     let (lambda, bindings) = parse_program(&compiled);
-    println!("{bindings:?}");
-    full_reduce(lambda)
+    let bindings_clone = bindings.clone();
+    let print =
+        |lambda: &Lambda| println!("{}", format_lambda_indented(lambda, &bindings, 0, true));
+    // println!("parsed {}", format_lambda(&lambda, &bindings));
+    println!("{bindings_clone:?}");
+    (full_reduce_debug(lambda, print), bindings_clone)
 }
 
 fn main() {
-    println!("{}", run_program("f(f.y).x(x)"));
+    let text = "
+    let zero f,x(x);
+    let succ n,f,x(
+        f.(n.f.x)
+    );
+    let two succ.(succ.zero);
+    let three succ.(succ.(succ.zero));
+    f,x((three.(three.f)).x)
+    ";
+
+    let (result, bindings) = run_program(text);
+    println!("{}", format_lambda(&result, &bindings));
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::{run_program, Lambda};
+    use crate::{helpers::format_lambda, run_program, Lambda};
 
     #[test]
     fn simple_reduction() {
         let text = "f(f.y).x(x)";
-        let reduced = run_program(text);
-        assert_eq!(reduced, Lambda::val(2));
+        let (reduced, _bindings) = run_program(text);
+        assert_eq!(reduced, Lambda::var(2));
     }
 
     #[test]
     fn not_true() {
         let text = "true(not(not.true).b(b.f.t)).c(d(c))";
-        let reduced = run_program(text);
-        assert_eq!(reduced, Lambda::val(4));
+        let (reduced, _bindings) = run_program(text);
+        assert_eq!(reduced, Lambda::var(4));
     }
 
     #[test]
     fn not_false() {
         let text = "false(not(not.false).b(b.f.t)).c(d(d))";
-        let reduced = run_program(text);
-        assert_eq!(reduced, Lambda::val(5));
+        let (reduced, _bindings) = run_program(text);
+        assert_eq!(reduced, Lambda::var(5));
     }
 
     #[test]
@@ -157,8 +174,8 @@ mod tests {
             )
         )
         ";
-        let reduced = run_program(text);
-        assert_eq!(reduced, Lambda::val(7));
+        let (reduced, _bindings) = run_program(text);
+        assert_eq!(reduced, Lambda::var(7));
     }
     #[test]
     fn and_true_false() {
@@ -181,8 +198,8 @@ mod tests {
             )
         )
         ";
-        let reduced = run_program(text);
-        assert_eq!(reduced, Lambda::val(7));
+        let (reduced, _bindings) = run_program(text);
+        assert_eq!(reduced, Lambda::var(7));
     }
     #[test]
     fn and_false_true() {
@@ -205,8 +222,8 @@ mod tests {
             )
         )
         ";
-        let reduced = run_program(text);
-        assert_eq!(reduced, Lambda::val(7));
+        let (reduced, _bindings) = run_program(text);
+        assert_eq!(reduced, Lambda::var(7));
     }
 
     #[test]
@@ -230,43 +247,78 @@ mod tests {
             )
         )
         ";
-        let reduced = run_program(text);
-        assert_eq!(reduced, Lambda::val(6));
+        let (reduced, _bindings) = run_program(text);
+        assert_eq!(reduced, Lambda::var(6));
     }
 
     #[test]
     fn church_numerals() {
         let text = "
-        zero(
-            succ(
-                f(
-                    succ.(succ.zero)
-                ).a(a)
-            ).n(
-                f(
-                    x(
-                        f.(n.f.x)
-                    )
-                )
-            )
-        ).f(
-            x(
-                x
-            )
-        )
+        let zero f,x(x);
+        let succ n,f,x(
+            f.(n.f.x)
+        );
+        succ.(succ.zero)
         ";
-        let result = run_program(text);
+        let (result, bindings) = run_program(text);
         assert_eq!(
             result,
             Lambda::def(
                 4,
                 Lambda::def(
                     5,
-                    Lambda::call(4, vec![Lambda::call(4, vec![Lambda::val(5)])]),
+                    Lambda::call(4, vec![Lambda::call(4, vec![Lambda::var(5)])]),
                     None
                 ),
                 None
             )
+        );
+        println!("{}", format_lambda(&result, &bindings));
+    }
+
+    #[test]
+    fn adding() {
+        let text = "
+        let add m,n(
+            f,x(
+                (m.f).(n.f.x)
+            )
+        );
+        let succ n,f,x(
+                f.(n.f.x)
+        );
+        let zero f,x(x);
+        let m succ.(succ.(succ.zero));
+        let n succ.(succ.zero);
+        add.m.n
+        ";
+
+        let (result, bindings) = run_program(text);
+        assert_eq!(
+            format_lambda(&result, &bindings),
+            "f(x(f.(f.(f.(f.(f.(x)))))))"
+        );
+    }
+
+    #[test]
+    fn multiplying() {
+        let text = "
+        let zero f,x(x);
+        let succ n,f,x(
+                f.(n.f.x)
+        );
+        let mul n,m(
+            f,x(m.(n.f).x)
+        );
+        let m succ.(succ.(succ.zero));
+        let n succ.(succ.zero);
+        mul.m.n
+        ";
+
+        let (result, bindings) = run_program(text);
+        assert_eq!(
+            format_lambda(&result, &bindings),
+            "f(x(f.(f.(f.(f.(f.(f.(x))))))))"
         );
     }
 }

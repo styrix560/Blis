@@ -121,30 +121,30 @@ fn parse_definition(text: &str, arguments: &mut VecDeque<Lambda>, binder: &mut B
     let body = parse(&text[name_end + 1..body_end], arguments, binder);
     binder.pop_binding();
 
-    println!("{}", &text[body_end + 1..]);
+    // println!("{}", &text[body_end + 1..]);
     Lambda::def(name_index, body, parameter)
 }
 
 fn parse(text: &str, arguments: &mut VecDeque<Lambda>, binder: &mut Binder) -> Lambda {
-    println!("parsing {text}");
+    // println!("parsing {text}");
     if text.starts_with('(') {
         let end = find_block_end(text).unwrap();
-        println!("unpacking {text}");
+        // println!("unpacking {text}");
         if end < text.len() - 1 {
-            println!("got some extra args");
+            // println!("got some extra args");
             assert!(text[end + 1..].starts_with('.'));
             let mut args = parse_arguments(&text[end + 1..], binder);
-            println!("extra args {args:?}");
+            // println!("extra args {args:?}");
             arguments.append(&mut args);
         }
         return parse(&text[1..end], arguments, binder);
     }
     let parse_type = get_type(text);
 
-    println!("{text}: {parse_type:?}");
+    // println!("{text}: {parse_type:?}");
 
     match parse_type {
-        ParseType::Value => Lambda::new_val(text, binder),
+        ParseType::Value => Lambda::new_var(text, binder),
         ParseType::Definition => parse_definition(text, arguments, binder),
         ParseType::Call => parse_call(text, arguments, binder),
     }
@@ -174,21 +174,21 @@ mod tests {
     fn parse_value() {
         let text = "hi".to_string();
         let (result, _bindings) = parse_program(&text);
-        assert_eq!(result, Lambda::Value(0))
+        assert_eq!(result, Lambda::Variable(0))
     }
 
     #[test]
     fn parenthesis_around_value() {
         let text = "(hi)".to_string();
         let (result, _bindings) = parse_program(&text);
-        assert_eq!(result, Lambda::Value(0))
+        assert_eq!(result, Lambda::Variable(0))
     }
 
     #[test]
     fn function_definition() {
         let text = "a(a)".to_string();
         let (result, bindings) = parse_program(&text);
-        assert_eq!(result, Lambda::def(0, Lambda::val(0), None), "{bindings:?}");
+        assert_eq!(result, Lambda::def(0, Lambda::var(0), None), "{bindings:?}");
     }
 
     #[test]
@@ -199,7 +199,7 @@ mod tests {
             result,
             Lambda::def(
                 0,
-                Lambda::def(1, Lambda::def(2, Lambda::val(0), None), None),
+                Lambda::def(1, Lambda::def(2, Lambda::var(0), None), None),
                 None
             )
         )
@@ -210,7 +210,7 @@ mod tests {
         let text = "a(a).5".to_string();
         let (result, bindings) = parse_program(&text);
         assert_eq!(bindings, vec!["5", "a"]);
-        assert_eq!(result, Lambda::def(1, Lambda::val(1), Some(Lambda::val(0))));
+        assert_eq!(result, Lambda::def(1, Lambda::var(1), Some(Lambda::var(0))));
     }
 
     #[test]
@@ -222,8 +222,8 @@ mod tests {
             result,
             Lambda::def(
                 2,
-                Lambda::def(3, Lambda::val(2), Some(Lambda::val(1))),
-                Some(Lambda::val(0))
+                Lambda::def(3, Lambda::var(2), Some(Lambda::var(1))),
+                Some(Lambda::var(0))
             ),
             "{bindings:?}"
         )
@@ -247,10 +247,10 @@ mod tests {
                 2,
                 Lambda::def(
                     3,
-                    Lambda::call(2, vec![Lambda::val(3)]),
-                    Some(Lambda::val(1))
+                    Lambda::call(2, vec![Lambda::var(3)]),
+                    Some(Lambda::var(1))
                 ),
-                Some(Lambda::def(0, Lambda::val(0), None))
+                Some(Lambda::def(0, Lambda::var(0), None))
             ),
             "{bindings:?}"
         )
@@ -278,12 +278,12 @@ mod tests {
                     5,
                     Lambda::def(
                         6,
-                        Lambda::call(4, vec![Lambda::val(5), Lambda::val(6)]),
-                        Some(Lambda::val(3))
+                        Lambda::call(4, vec![Lambda::var(5), Lambda::var(6)]),
+                        Some(Lambda::var(3))
                     ),
-                    Some(Lambda::val(2))
+                    Some(Lambda::var(2))
                 ),
-                Some(Lambda::def(0, Lambda::def(1, Lambda::val(1), None), None))
+                Some(Lambda::def(0, Lambda::def(1, Lambda::var(1), None), None))
             ),
             "{}",
             result
@@ -312,12 +312,12 @@ mod tests {
                     5,
                     Lambda::def(
                         6,
-                        Lambda::call(4, vec![Lambda::val(5), Lambda::val(6)]),
-                        Some(Lambda::val(3))
+                        Lambda::call(4, vec![Lambda::var(5), Lambda::var(6)]),
+                        Some(Lambda::var(3))
                     ),
-                    Some(Lambda::val(2))
+                    Some(Lambda::var(2))
                 ),
-                Some(Lambda::def(0, Lambda::def(1, Lambda::val(1), None), None))
+                Some(Lambda::def(0, Lambda::def(1, Lambda::var(1), None), None))
             ),
             "{}",
             result
@@ -344,10 +344,10 @@ mod tests {
                 2,
                 Lambda::def(
                     3,
-                    Lambda::def(5, Lambda::val(3), Some(Lambda::val(4))),
-                    Some(Lambda::val(1))
+                    Lambda::def(5, Lambda::var(3), Some(Lambda::var(4))),
+                    Some(Lambda::var(1))
                 ),
-                Some(Lambda::val(0))
+                Some(Lambda::var(0))
             )
         )
     }
@@ -361,8 +361,8 @@ mod tests {
             result,
             Lambda::def(
                 1,
-                Lambda::call(1, vec![Lambda::val(2)]),
-                Some(Lambda::def(0, Lambda::val(0), None))
+                Lambda::call(1, vec![Lambda::var(2)]),
+                Some(Lambda::def(0, Lambda::var(0), None))
             )
         )
     }
@@ -376,8 +376,8 @@ mod tests {
             result,
             Lambda::def(
                 1,
-                Lambda::call(1, vec![Lambda::val(1)]),
-                Some(Lambda::def(0, Lambda::val(0), None))
+                Lambda::call(1, vec![Lambda::var(1)]),
+                Some(Lambda::def(0, Lambda::var(0), None))
             )
         )
     }

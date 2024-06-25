@@ -7,7 +7,7 @@ fn insert_arguments(root: &mut Lambda, args: &mut VecDeque<Lambda>) {
         return;
     }
     match root {
-        Lambda::Value(name) => {
+        Lambda::Variable(name) => {
             let args = args.drain(..);
             *root = Lambda::call(*name, args.collect());
         }
@@ -31,13 +31,13 @@ fn insert_arguments(root: &mut Lambda, args: &mut VecDeque<Lambda>) {
 }
 
 fn replace(name: usize, replacement: &Lambda, body: &Lambda) -> Lambda {
-    // println!("reducing {body} with {name} -> {replacement}");
+    println!("reducing {body} with {name} -> {replacement}");
     match body {
-        Lambda::Value(value) => {
+        Lambda::Variable(value) => {
             if value == &name {
                 replacement.clone()
             } else {
-                Lambda::val(*value)
+                Lambda::var(*value)
             }
         }
         Lambda::Definition {
@@ -45,6 +45,9 @@ fn replace(name: usize, replacement: &Lambda, body: &Lambda) -> Lambda {
             body,
             parameter,
         } => {
+            if name == *name_index {
+                return body.as_ref().clone();
+            }
             let new_body = replace(name, replacement, body.as_ref());
 
             let new_parameter = parameter
@@ -62,22 +65,13 @@ fn replace(name: usize, replacement: &Lambda, body: &Lambda) -> Lambda {
             name_index,
             parameters,
         } => {
-            assert!(
-                matches!(
-                    replacement,
-                    Lambda::Definition {
-                        name_index: _,
-                        body: _,
-                        parameter: _
-                    }
-                ) || matches!(replacement, Lambda::Value(_))
-            );
             let mut new_parameter: VecDeque<Lambda> = parameters
                 .iter()
                 .map(|p| replace(name, replacement, p))
                 .collect();
 
             if *name_index == name {
+                println!("{new_parameter:?}");
                 let mut replacement = replacement.clone();
                 insert_arguments(&mut replacement, &mut new_parameter);
                 replacement
@@ -97,6 +91,8 @@ fn reduce(root: Lambda) -> Lambda {
     {
         assert!(parameter.is_some());
         let parameter = parameter.unwrap();
+        let parameter = Box::new(full_reduce(*parameter, 10));
+
         return replace(name_index, &parameter, &body);
     }
     unreachable!()
@@ -104,29 +100,27 @@ fn reduce(root: Lambda) -> Lambda {
 
 fn find_reducible(root: Lambda) -> Result<Lambda, Lambda> {
     match root {
-        Lambda::Value(_) => Err(root),
+        Lambda::Variable(_) => Err(root),
         Lambda::Definition {
             name_index,
             body,
             parameter,
         } => {
-            if parameter.is_none() {
-                let new_body = find_reducible(*body);
-                if let Ok(new_body) = new_body {
-                    Ok(Lambda::def(name_index, new_body, parameter.map(|p| *p)))
-                } else {
-                    Err(Lambda::def(
-                        name_index,
-                        new_body.unwrap_err(),
-                        parameter.map(|p| *p),
-                    ))
-                }
-            } else {
+            let new_body = find_reducible(*body.clone());
+            if let Ok(new_body) = new_body {
+                Ok(Lambda::def(name_index, new_body, parameter.map(|p| *p)))
+            } else if parameter.is_some() {
                 Ok(reduce(Lambda::def(
                     name_index,
                     *body,
                     parameter.map(|p| *p),
                 )))
+            } else {
+                Err(Lambda::def(
+                    name_index,
+                    new_body.unwrap_err(),
+                    parameter.map(|p| *p),
+                ))
             }
         }
         Lambda::Call {
@@ -153,16 +147,32 @@ fn find_reducible(root: Lambda) -> Result<Lambda, Lambda> {
     }
 }
 
-pub(crate) fn full_reduce(mut root: Lambda) -> Lambda {
-    for _ in 0..1000 {
-        println!("{root}");
+pub(crate) fn full_reduce(mut root: Lambda, iterations: usize) -> Lambda {
+    for iteration in 0..iterations {
         let result = find_reducible(root);
         if let Err(result) = result {
+            println!("done in {iteration} iterations");
             return result;
         }
         root = result.unwrap();
     }
-    root
+    panic!();
+}
+
+pub(crate) fn full_reduce_debug<F>(mut root: Lambda, print: F) -> Lambda
+where
+    F: FnOnce(&Lambda) + std::marker::Copy,
+{
+    for iteration in 0..50 {
+        print(&root);
+        let result: Result<Lambda, Lambda> = find_reducible(root);
+        if let Err(result) = result {
+            println!("done in {iteration} iterations");
+            return result;
+        }
+        root = result.unwrap();
+    }
+    panic!();
 }
 
 #[cfg(test)]
@@ -173,8 +183,8 @@ mod tests {
     #[test]
     fn no_reduction() {
         // a(a)
-        let lambda = Lambda::def(0, Lambda::val(0), None);
-        let reduced = full_reduce(lambda.clone());
+        let lambda = Lambda::def(0, Lambda::var(0), None);
+        let reduced = full_reduce(lambda.clone(), 50);
         assert_eq!(lambda, reduced);
     }
 
@@ -182,11 +192,11 @@ mod tests {
     fn simple_reduction() {
         let lambda = Lambda::def(
             0,
-            Lambda::call(0, vec![Lambda::val(1)]),
-            Some(Lambda::def(2, Lambda::val(2), None)),
+            Lambda::call(0, vec![Lambda::var(1)]),
+            Some(Lambda::def(2, Lambda::var(2), None)),
         );
-        let reduced = full_reduce(lambda);
-        assert_eq!(reduced, Lambda::val(1))
+        let reduced = full_reduce(lambda, 50);
+        assert_eq!(reduced, Lambda::var(1))
     }
 
     #[test]
@@ -196,17 +206,17 @@ mod tests {
             0,
             Lambda::def(
                 1,
-                Lambda::call(0, vec![Lambda::val(1)]),
-                Some(Lambda::val(2)),
+                Lambda::call(0, vec![Lambda::var(1)]),
+                Some(Lambda::var(2)),
             ),
             Some(Lambda::def(
                 3,
-                Lambda::def(4, Lambda::val(4), None),
-                Some(Lambda::val(5)),
+                Lambda::def(4, Lambda::var(4), None),
+                Some(Lambda::var(5)),
             )),
         );
-        let reduced = full_reduce(lambda);
-        assert_eq!(reduced, Lambda::val(2));
+        let reduced = full_reduce(lambda, 50);
+        assert_eq!(reduced, Lambda::var(2));
     }
 
     #[test]
@@ -214,11 +224,11 @@ mod tests {
         // 0(2(0.2)).1(1) => 2(1(1).2) => 2(2)
         let lambda = Lambda::def(
             0,
-            Lambda::def(2, Lambda::call(0, vec![Lambda::val(2)]), None),
-            Some(Lambda::def(1, Lambda::val(1), None)),
+            Lambda::def(2, Lambda::call(0, vec![Lambda::var(2)]), None),
+            Some(Lambda::def(1, Lambda::var(1), None)),
         );
-        let reduced = full_reduce(lambda);
-        assert_eq!(reduced, Lambda::def(2, Lambda::val(2), None))
+        let reduced = full_reduce(lambda, 50);
+        assert_eq!(reduced, Lambda::def(2, Lambda::var(2), None))
     }
 
     #[test]
@@ -232,26 +242,42 @@ mod tests {
                     2,
                     Lambda::call(
                         0,
-                        vec![Lambda::call(1, vec![Lambda::call(0, vec![Lambda::val(3)])])],
+                        vec![Lambda::call(1, vec![Lambda::call(0, vec![Lambda::var(3)])])],
                     ),
-                    Some(Lambda::def(6, Lambda::val(6), None)),
+                    Some(Lambda::def(6, Lambda::var(6), None)),
                 ),
-                Some(Lambda::def(5, Lambda::val(5), None)),
+                Some(Lambda::def(5, Lambda::var(5), None)),
             ),
-            Some(Lambda::def(4, Lambda::val(4), None)),
+            Some(Lambda::def(4, Lambda::var(4), None)),
         );
-        let reduced = full_reduce(lambda);
-        assert_eq!(reduced, Lambda::val(3))
+        let reduced = full_reduce(lambda, 50);
+        assert_eq!(reduced, Lambda::var(3))
     }
 
     #[test]
     fn calling_with_itself() {
         let lambda = Lambda::def(
             0,
-            Lambda::call(0, vec![Lambda::val(0)]),
-            Some(Lambda::def(1, Lambda::val(1), None)),
+            Lambda::call(0, vec![Lambda::var(0)]),
+            Some(Lambda::def(1, Lambda::var(1), None)),
         );
-        let reduced = full_reduce(lambda);
-        assert_eq!(reduced, Lambda::def(1, Lambda::val(1), None))
+        let reduced = full_reduce(lambda, 50);
+        assert_eq!(reduced, Lambda::def(1, Lambda::var(1), None))
     }
+
+    // #[test]
+    // fn nested_within_itself() {
+    //     // f(f(f).a(a)).f(f.5) => f(f.5)(f(f.5)).a(a)
+    //     // f a 5
+    //     let lambda = Lambda::def(
+    //         0,
+    //         Lambda::def(
+    //             0,
+    //             Lambda::var(0),
+    //             Some(Lambda::def(1, Lambda::var(1), None)),
+    //         ),
+    //         Some(Lambda::def(0, Lambda::call(0, vec![Lambda::var(2)]), None)),
+    //     );
+    //     let reduced
+    // }
 }

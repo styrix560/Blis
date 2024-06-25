@@ -20,47 +20,57 @@ fn replace_lets(text: &str) -> String {
     let text = &text[index..];
     let mut string = String::from(text);
     for (name, body) in lets.into_iter().rev() {
-        string = format!("{name}({string}).{body}");
+        println!("{string}");
+        string = format!("{name}({string}).({body})");
     }
+    println!("{string}");
     string
 }
 
 pub(crate) fn compile(text: &str) -> String {
     let after_lets_replaced = replace_lets(text);
     let without_whitespace = remove_whitespace(&after_lets_replaced);
-    replace_comma_definition(&without_whitespace)
+    let compiled = replace_comma_definition(without_whitespace);
+    assert!(find_block_end(&compiled).is_some());
+    compiled
 }
 
-fn replace_comma_definition(text: &str) -> String {
-    let mut string = String::new();
+fn replace_comma_definition(mut text: String) -> String {
     let regex = Regex::new("[^(),.]+(,[^(),.]+)+").unwrap();
-    let find = regex.find(text);
-    if find.is_none() {
-        return text.to_string();
-    }
-    let find = find.unwrap();
-    let start = find.start();
-    println!("here {}", &text[..start]);
-    string += &text[..start];
-    let args_end = find.end();
-    println!("args: {}", &text[start..args_end]);
-    let args = &text[start..args_end].split(',').collect::<Vec<&str>>();
-    let number_of_args = args.len();
-    let body_end = args_end + find_block_end(&text[args_end..]).unwrap();
 
-    let body = &text[args_end + 1..body_end];
-    for &arg in args {
-        println!("arg: {arg}");
-        string += arg;
-        string += "(";
+    loop {
+        // println!("called with : {text}");
+
+        let mut string = String::new();
+        let find = regex.find(&text);
+        if find.is_none() {
+            return text;
+        }
+        let find = find.unwrap();
+        let start = find.start();
+        string += &text[..start];
+        let args_end = find.end();
+        // println!("args: {}", &text[start..args_end]);
+        let args = &text[start..args_end].split(',').collect::<Vec<&str>>();
+        let number_of_args = args.len();
+        let body_end = args_end + find_block_end(&text[args_end..]).unwrap();
+        let rest = &text[body_end + 1..];
+
+        let body = &text[args_end + 1..body_end];
+        for &arg in args {
+            // println!("arg: {arg}");
+            string += arg;
+            string += "(";
+        }
+        // println!("body: {}", body);
+        string += body;
+        for _ in 0..number_of_args {
+            string += ")";
+        }
+        string += rest;
+        // println!("rest {}", rest);
+        text = string;
     }
-    println!("body: {}", body);
-    string += &replace_comma_definition(body);
-    for _ in 0..number_of_args {
-        string += ")";
-    }
-    string += &text[body_end + 1..];
-    string
 }
 
 #[cfg(test)]
@@ -81,7 +91,7 @@ mod tests {
         let text = "let f a(a.5);
         f.a(a)";
         let compiled = remove_whitespace(&compile(text));
-        assert_eq!(compiled, "f(f.a(a)).a(a.5)")
+        assert_eq!(compiled, "f(f.a(a)).(a(a.5))")
     }
 
     #[test]
@@ -91,7 +101,7 @@ mod tests {
         let g a(a.3);
         f.g";
         let compiled = remove_whitespace(&compile(text));
-        assert_eq!(compiled, "f(g(f.g).a(a.3)).a(a.5)")
+        assert_eq!(compiled, "f(g(f.g).(a(a.3))).(a(a.5))")
     }
 
     #[test]
