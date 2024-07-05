@@ -8,8 +8,5 @@ edition = "2021"
 [dependencies]
 regex = "1.10.5"
 
-[profile.release]
-debug = true
-
 [profile.dev]
 debug = true

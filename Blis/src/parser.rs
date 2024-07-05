@@ -99,12 +99,15 @@ fn parse_arguments(mut text: &str, binder: &mut Binder) -> VecDeque<Lambda> {
 fn parse_definition(text: &str, arguments: &mut VecDeque<Lambda>, binder: &mut Binder) -> Lambda {
     let name_end = text.find('(').unwrap();
     let name = &text[..name_end];
-    assert!(!binder
-        .bindings_stack
-        .iter()
-        .map(|index| binder.global_bindings[*index].as_str())
-        .collect::<Vec<&str>>()
-        .contains(&name));
+    assert!(
+        !binder
+            .bindings_stack
+            .iter()
+            .map(|index| binder.global_bindings[*index].as_str())
+            .collect::<Vec<&str>>()
+            .contains(&name),
+        "that name is already defined: {name}",
+    );
 
     let body_end = find_block_end(text).unwrap();
 
@@ -121,27 +124,20 @@ fn parse_definition(text: &str, arguments: &mut VecDeque<Lambda>, binder: &mut B
     let body = parse(&text[name_end + 1..body_end], arguments, binder);
     binder.pop_binding();
 
-    // println!("{}", &text[body_end + 1..]);
     Lambda::def(name_index, body, parameter)
 }
 
 fn parse(text: &str, arguments: &mut VecDeque<Lambda>, binder: &mut Binder) -> Lambda {
-    // println!("parsing {text}");
     if text.starts_with('(') {
         let end = find_block_end(text).unwrap();
-        // println!("unpacking {text}");
         if end < text.len() - 1 {
-            // println!("got some extra args");
             assert!(text[end + 1..].starts_with('.'));
             let mut args = parse_arguments(&text[end + 1..], binder);
-            // println!("extra args {args:?}");
             arguments.append(&mut args);
         }
         return parse(&text[1..end], arguments, binder);
     }
     let parse_type = get_type(text);
-
-    // println!("{text}: {parse_type:?}");
 
     match parse_type {
         ParseType::Value => Lambda::new_var(text, binder),

@@ -20,10 +20,8 @@ fn replace_lets(text: &str) -> String {
     let text = &text[index..];
     let mut string = String::from(text);
     for (name, body) in lets.into_iter().rev() {
-        // println!("{string}");
         string = format!("{name}({string}).({body})");
     }
-    // println!("{string}");
     string
 }
 
@@ -39,8 +37,6 @@ fn replace_comma_definition(mut text: String) -> String {
     let regex = Regex::new("[^(),.]+(,[^(),.]+)+").unwrap();
 
     loop {
-        // println!("called with : {text}");
-
         let mut string = String::new();
         let find = regex.find(&text);
         if find.is_none() {
@@ -50,7 +46,6 @@ fn replace_comma_definition(mut text: String) -> String {
         let start = find.start();
         string += &text[..start];
         let args_end = find.end();
-        // println!("args: {}", &text[start..args_end]);
         let args = &text[start..args_end].split(',').collect::<Vec<&str>>();
         let number_of_args = args.len();
         let body_end = args_end + find_block_end(&text[args_end..]).unwrap();
@@ -58,17 +53,14 @@ fn replace_comma_definition(mut text: String) -> String {
 
         let body = &text[args_end + 1..body_end];
         for &arg in args {
-            // println!("arg: {arg}");
             string += arg;
             string += "(";
         }
-        // println!("body: {}", body);
         string += body;
         for _ in 0..number_of_args {
             string += ")";
         }
         string += rest;
-        // println!("rest {}", rest);
         text = string;
     }
 }

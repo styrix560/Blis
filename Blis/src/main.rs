@@ -1,7 +1,7 @@
-use std::{collections::VecDeque, fmt::Display, time::Instant};
+use std::{collections::VecDeque, fmt::Display};
 
 use compiler::compile;
-use helpers::{format_lambda, format_lambda_indented};
+
 use parser::{parse_program, Binder};
 use reducer::full_reduce;
 
@@ -103,44 +103,15 @@ impl Lambda {
 
 fn run_program(text: &str) -> (Lambda, Vec<String>) {
     let compiled = compile(text);
-    println!("{compiled}");
     let (lambda, bindings) = parse_program(&compiled);
     let bindings_clone = bindings.clone();
-    let print =
-        |lambda: &Lambda| println!("{}", format_lambda_indented(lambda, &bindings, 0, true));
-    // println!("parsed {}", format_lambda(&lambda, &bindings));
-    println!("{bindings_clone:?}");
-    (full_reduce(lambda, 50), bindings_clone)
-}
-
-fn calculate_5_times_6() {
-    let text = "
-    let zero f,x(x);
-    let succ n,f,x(
-            f.(n.f.x)
-    );
-    let mul n,m(
-        f,x(m.(n.f).x)
-    );
-    let m succ.(succ.(succ.(succ.(succ.(succ.(succ.(succ.(succ.(succ.(succ.zero))))))))));
-    let n succ.(succ.(succ.(succ.(succ.(succ.(succ.(succ.(succ.(succ.zero)))))))));
-    mul.m.n
-    ";
-    let now = Instant::now();
-    let compiled = compile(text);
-    println!("compiled in {}ms", now.elapsed().as_micros());
-    let now = Instant::now();
-    let (lambda, bindings) = parse_program(&compiled);
-    println!("parsed in {}ms", now.elapsed().as_micros());
-    let now = Instant::now();
-    let result = full_reduce(lambda, 1000);
-    println!("run in {}ms", now.elapsed().as_micros());
-
-    // println!("{}", format_lambda(&result, &bindings));
+    (full_reduce(lambda, 100), bindings_clone)
 }
 
 fn main() {
-    calculate_5_times_6();
+    let text = "a(a).5";
+    let (result, _bindings) = run_program(text);
+    println!("{result}");
 }
 
 #[cfg(test)]
@@ -347,7 +318,4 @@ mod tests {
 
         let (_result, _bindings) = run_program(text);
     }
-
-    fn pred() {}
-    fn fiboncacci() {}
 }

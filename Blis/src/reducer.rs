@@ -31,7 +31,6 @@ fn insert_arguments(root: &mut Lambda, args: &mut VecDeque<Lambda>) {
 }
 
 fn replace(name: usize, replacement: &Lambda, body: &Lambda) -> Lambda {
-    // println!("reducing {body} with {name} -> {replacement}");
     match body {
         Lambda::Variable(value) => {
             if value == &name {
@@ -71,7 +70,6 @@ fn replace(name: usize, replacement: &Lambda, body: &Lambda) -> Lambda {
                 .collect();
 
             if *name_index == name {
-                // println!("{new_parameter:?}");
                 let mut replacement = replacement.clone();
                 insert_arguments(&mut replacement, &mut new_parameter);
                 replacement
@@ -148,7 +146,7 @@ fn find_reducible(root: Lambda) -> Result<Lambda, Lambda> {
 }
 
 pub(crate) fn full_reduce(mut root: Lambda, iterations: usize) -> Lambda {
-    for iteration in 0..iterations {
+    for _ in 0..iterations {
         let result = find_reducible(root);
         if let Err(result) = result {
             return result;
@@ -156,22 +154,6 @@ pub(crate) fn full_reduce(mut root: Lambda, iterations: usize) -> Lambda {
         root = result.unwrap();
     }
     panic!("Term was not reducible in {iterations} iterations");
-}
-
-pub(crate) fn full_reduce_debug<F>(mut root: Lambda, print: F) -> Lambda
-where
-    F: FnOnce(&Lambda) + std::marker::Copy,
-{
-    for iteration in 0..50 {
-        print(&root);
-        let result: Result<Lambda, Lambda> = find_reducible(root);
-        if let Err(result) = result {
-            // println!("done in {iteration} iterations");
-            return result;
-        }
-        root = result.unwrap();
-    }
-    panic!();
 }
 
 #[cfg(test)]
