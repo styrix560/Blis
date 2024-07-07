@@ -1,7 +1,8 @@
-use std::{collections::VecDeque, fmt::Display};
+use std::{collections::VecDeque, env, fmt::Display, fs};
 
 use compiler::compile;
 
+use helpers::format_lambda;
 use parser::{parse_program, Binder};
 use reducer::full_reduce;
 
@@ -105,13 +106,33 @@ fn run_program(text: &str) -> (Lambda, Vec<String>) {
     let compiled = compile(text);
     let (lambda, bindings) = parse_program(&compiled);
     let bindings_clone = bindings.clone();
-    (full_reduce(lambda, 100), bindings_clone)
+    (full_reduce(lambda, 10000), bindings_clone)
+}
+
+fn print_usage() {
+    println!("==================================\n| Blis - Lambda Calculus Reducer |\n==================================\n\nWarning:\n    This is a research project and not meant for general use.\n    Therefore, the parser is not built very defensively and may produce false positives.\n    Proceed at your own risk.\n\nUsage:\n    blis.exe [Options or Args]\n\nArgs:\n    \"path/to/file\" - open the file and reduce the contained lambda calculus expression\n\nOptions:\n    --help         - show this message\n\n");
 }
 
 fn main() {
-    let text = "a(a).5";
-    let (result, _bindings) = run_program(text);
-    println!("{result}");
+    let arg = env::args().nth(1);
+    if arg.is_none() {
+        print_usage();
+        return;
+    }
+    let arg = arg.unwrap();
+    if arg == "--help" {
+        print_usage();
+        return;
+    }
+    let file = arg;
+    let contents = fs::read_to_string(file);
+    if contents.is_err() {
+        println!("Error reading file. Please check your path and try again");
+        return;
+    }
+    let contents = contents.unwrap();
+    let (result, bindings) = run_program(&contents);
+    println!("{}", format_lambda(&result, &bindings));
 }
 
 #[cfg(test)]
@@ -312,8 +333,9 @@ mod tests {
     #[should_panic]
     fn omega() {
         let text = "
-        let omega x(x.x);
-        omega.omega
+        let f x(x.x);
+        let omega f.f
+        omega
         ";
 
         let (_result, _bindings) = run_program(text);
